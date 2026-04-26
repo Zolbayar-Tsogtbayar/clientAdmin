@@ -268,6 +268,20 @@ export default function ClientDashboard() {
         if (url) ops.push(api.saveBlockImages(accessToken, selectedProject, instanceId, [{ url }], 'replace'))
       }
 
+      const prev = blocks.find(b => b.instanceId === instanceId)?.props
+      const prevEls = JSON.stringify(prev?._elements ?? [])
+      const nextEls = JSON.stringify(newProps._elements ?? [])
+      if (prevEls !== nextEls) {
+        ops.push(
+          api.saveBlockElements(
+            accessToken,
+            selectedProject,
+            instanceId,
+            Array.isArray(newProps._elements) ? newProps._elements : [],
+          ),
+        )
+      }
+
       await Promise.all(ops)
       setBlocks(prev => prev.map(b => b.instanceId === instanceId ? { ...b, props: newProps } : b))
       setLiveReloadToken(t => t + 1)

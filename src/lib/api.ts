@@ -97,4 +97,11 @@ export const api = {
       `/content-admin/blocks/${encodeURIComponent(instanceId)}/media`,
       { method: 'POST', token, project, body: JSON.stringify({ items, mode }) },
     ),
+
+  /** Replace freeform `_elements` array (matches superadmin Inspector). */
+  saveBlockElements: (token: string, project: string, instanceId: string, elements: unknown[]) =>
+    req<{ success: boolean; component: ComponentRecord }>(
+      `/content-admin/blocks/${encodeURIComponent(instanceId)}/elements`,
+      { method: 'POST', token, project, body: JSON.stringify({ elements }) },
+    ),
 }
