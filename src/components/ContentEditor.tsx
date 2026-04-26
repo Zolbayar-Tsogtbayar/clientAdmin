@@ -27,14 +27,14 @@ const CONTENT_FIELDS: Record<string, FieldDef[]> = {
     { key: 'primaryBtnUrl',    label: 'Үндсэн товч холбоос',    type: 'url',      placeholder: 'https://...' },
     { key: 'secondaryBtnText', label: 'Хоёрдогч товч',          type: 'text',     placeholder: 'Дэлгэрэнгүй' },
     { key: 'secondaryBtnUrl',  label: 'Хоёрдогч товч холбоос',  type: 'url',      placeholder: 'https://...' },
-    { key: 'imageUrl',         label: 'Зургийн URL',            type: 'image',    placeholder: 'https://...' },
+    { key: 'imageUrl',         label: 'Зургийн URL',            type: 'image',    placeholder: '.jpg/.png эсвэл unsplash.com/photos/... (шууд зураг биш хуудас)' },
   ],
   about: [
     { key: 'title',       label: 'Гарчиг',          type: 'text',     placeholder: 'Бидний тухай' },
     { key: 'description', label: 'Тайлбар',          type: 'textarea', placeholder: 'Компанийн товч танилцуулга...' },
     { key: 'btnText',     label: 'Товчны текст',     type: 'text',     placeholder: 'Дэлгэрэнгүй' },
     { key: 'btnUrl',      label: 'Товчны холбоос',   type: 'url',      placeholder: 'https://...' },
-    { key: 'imageUrl',    label: 'Зургийн URL',      type: 'image',    placeholder: 'https://...' },
+    { key: 'imageUrl',    label: 'Зургийн URL',      type: 'image',    placeholder: '.jpg/.png эсвэл unsplash.com/photos/...' },
   ],
   services: [
     { key: 'title',    label: 'Хэсгийн гарчиг', type: 'text',     placeholder: 'Манай үйлчилгээ' },

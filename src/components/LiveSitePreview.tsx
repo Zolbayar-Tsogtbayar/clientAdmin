@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect, useCallback, type RefObject } from 'react'
 import { ExternalLink, RefreshCw } from 'lucide-react'
 import { buildLivePreviewSrc, normalizeLiveSiteBase } from '@/lib/livePreviewUrl'
+import { CMS_LIVE_EDIT_HIGHLIGHT } from '@/lib/liveEditMessages'
 
 type Props = {
   /** Resolved preview origin (template deployment). */
@@ -18,6 +19,10 @@ type Props = {
   previewToken?: string | null
   /** Inline edit in iframe (double-click text); adds cmsLiveEdit + parentOrigin. */
   iframeLiveEdit: boolean
+  /** Set on the iframe so the parent can verify postMessage source. */
+  iframeRef?: RefObject<HTMLIFrameElement | null>
+  /** Syncs with admin selected block — same highlight idea as the Загвар tab. */
+  selectionInstanceId?: string | null
 }
 
 export function LiveSitePreview({
@@ -29,8 +34,27 @@ export function LiveSitePreview({
   useDynamicProject,
   previewToken,
   iframeLiveEdit,
+  iframeRef,
+  selectionInstanceId = null,
 }: Props) {
   const [nonce, setNonce] = useState(0)
+  /** Set after mount so preview URL always includes parentOrigin (SSR had no window). */
+  const [adminOrigin, setAdminOrigin] = useState('')
+
+  const templateOrigin = useMemo(() => {
+    const b = baseUrl ? normalizeLiveSiteBase(baseUrl) : null
+    if (!b) return ''
+    try {
+      return new URL(b).origin
+    } catch {
+      return ''
+    }
+  }, [baseUrl])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setAdminOrigin(window.location.origin)
+  }, [])
 
   const src = useMemo(() => {
     const b = baseUrl ? normalizeLiveSiteBase(baseUrl) : null
@@ -38,8 +62,7 @@ export function LiveSitePreview({
     const token =
       (previewToken?.trim() || process.env.NEXT_PUBLIC_CMS_PREVIEW_TOKEN?.trim()) ||
       undefined
-    const parentOrigin =
-      typeof window !== 'undefined' && iframeLiveEdit ? window.location.origin : ''
+    const parentOrigin = iframeLiveEdit && adminOrigin ? adminOrigin : ''
     return buildLivePreviewSrc(b, pageRoute, {
       project: projectName,
       useDynamicProject,
@@ -58,7 +81,28 @@ export function LiveSitePreview({
     useDynamicProject,
     previewToken,
     iframeLiveEdit,
+    adminOrigin,
   ])
+
+  const postSelectionHighlight = useCallback(() => {
+    if (!iframeLiveEdit || !templateOrigin) return
+    const w = iframeRef?.current?.contentWindow
+    if (!w) return
+    try {
+      w.postMessage(
+        { type: CMS_LIVE_EDIT_HIGHLIGHT, instanceId: selectionInstanceId },
+        templateOrigin,
+      )
+    } catch {
+      /* ignore */
+    }
+  }, [iframeLiveEdit, templateOrigin, selectionInstanceId, iframeRef])
+
+  useEffect(() => {
+    if (!iframeLiveEdit || !src) return
+    const t = window.setTimeout(() => postSelectionHighlight(), 0)
+    return () => window.clearTimeout(t)
+  }, [iframeLiveEdit, src, postSelectionHighlight, reloadToken, nonce])
 
   if (!baseUrl || !normalizeLiveSiteBase(baseUrl)) {
     return (
@@ -103,9 +147,13 @@ export function LiveSitePreview({
         style={{ maxWidth: viewWidth }}
       >
         <iframe
+          ref={iframeRef as RefObject<HTMLIFrameElement> | undefined}
           key={`${src}-${reloadToken}-${nonce}`}
           title="Live site preview"
           src={src}
+          onLoad={() => {
+            requestAnimationFrame(() => postSelectionHighlight())
+          }}
           className="h-[min(720px,calc(100vh-200px))] w-full min-h-[480px] bg-white"
         />
       </div>

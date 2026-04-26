@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useProjectStore } from '@/stores/projectStore'
 import { api, type ComponentRecord, type ProjectSummary } from '@/lib/api'
 import { normalizeLiveSiteBase } from '@/lib/livePreviewUrl'
+import { CMS_LIVE_EDIT_SELECT, CMS_LIVE_EDIT_TEXT } from '@/lib/liveEditMessages'
 import {
   readLiveSiteBaseOverride,
   writeLiveSiteBaseOverride,
@@ -33,9 +34,6 @@ const COMPONENT_LABELS: Record<string, string> = {
   services: 'Үйлчилгээ', features: 'Онцлог', products: 'Бүтээгдэхүүн',
   pricing: 'Үнийн санал', clients: 'Харилцагчид', promo: 'Промо банер', contact: 'Холбоо барих',
 }
-
-const CMS_LIVE_EDIT_SELECT = 'cms-live-edit-select'
-const CMS_LIVE_EDIT_TEXT = 'cms-live-edit-text'
 
 export default function ClientDashboard() {
   const { accessToken, user, clearSession } = useAuthStore()
@@ -61,6 +59,8 @@ export default function ClientDashboard() {
 
   const projectsRef = useRef(projects)
   projectsRef.current = projects
+
+  const livePreviewIframeRef = useRef<HTMLIFrameElement | null>(null)
 
   const selectedBlock = blocks.find(b => b.instanceId === selectedId) ?? null
 
@@ -108,7 +108,7 @@ export default function ClientDashboard() {
     setUseDynamicProject(
       dyn !== null
         ? dyn
-        : process.env.NEXT_PUBLIC_CMS_TEMPLATE_DYNAMIC_PROJECT === 'true',
+        : process.env.NEXT_PUBLIC_CMS_TEMPLATE_DYNAMIC_PROJECT !== 'false',
     )
     setPreviewTokenInput(readPreviewToken(selectedProject))
     setIframeLiveEdit(readIframeLiveEdit(selectedProject))
@@ -201,7 +201,16 @@ export default function ClientDashboard() {
     }
 
     const onMessage = (e: MessageEvent) => {
-      if (e.origin !== templateOrigin) return
+      const iframeWin = livePreviewIframeRef.current?.contentWindow
+      const fromOurIframe = iframeWin != null && e.source === iframeWin
+      let originMatches = false
+      try {
+        originMatches = e.origin === templateOrigin
+      } catch {
+        /* ignore */
+      }
+      if (!fromOurIframe && !originMatches) return
+
       const d = e.data as { type?: string; instanceId?: string; field?: string; value?: string }
       if (!d || typeof d !== 'object' || typeof d.type !== 'string') return
 
@@ -522,10 +531,11 @@ export default function ClientDashboard() {
                       }}
                     />
                     <span>
-                      <span className="font-semibold">Iframe-д шууд засах</span>
+                      <span className="font-semibold">Сайт — Загвар шиг сонгох</span>
                       <span className="block text-[10px] font-normal text-slate-500">
-                        Нэг даралт: блок сонгогдоно (баруун тал). Давхар даралт: текст засаж blur хийхэд
-                        хадгална. Template: cmsLiveEdit=1 + parentOrigin (автомат), CMS_PREVIEW_TOKEN тааруулна.
+                        Блок дээр дарвал баруун талын редактор нээгдэнэ (Загвар табтай ижил). Холбоос дээр
+                        шилжихгүй. Давхар даралт: товч текст шууд засах. Template: liveEdit, CMS_FRAME_ANCESTORS,
+                        preview token эсвэл CMS_LIVE_EDIT_TRUST_PARENT_ORIGIN (dev).
                       </span>
                     </span>
                   </label>
@@ -560,6 +570,10 @@ export default function ClientDashboard() {
                       useDynamicProject={useDynamicProject}
                       previewToken={previewTokenInput}
                       iframeLiveEdit={iframeLiveEdit}
+                      iframeRef={livePreviewIframeRef}
+                      selectionInstanceId={
+                        iframeLiveEdit ? selectedId : null
+                      }
                     />
                   </div>
                 </div>
