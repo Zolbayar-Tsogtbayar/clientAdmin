@@ -1,8 +1,6 @@
 'use client'
-import type { CSSProperties } from 'react'
+import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import { Image as ImageIcon, Package } from 'lucide-react'
-import type { ComponentRecord } from '@/lib/api'
-import { HeaderCanvasPreview } from './HeaderCanvasPreview'
 
 function pxFromSizeProp(v: unknown, fallback: number): number {
   if (typeof v === 'number' && Number.isFinite(v)) return v
@@ -13,32 +11,41 @@ function pxFromSizeProp(v: unknown, fallback: number): number {
   return fallback
 }
 
-function SkeletonLine({ w = '100%', h = 14, color = '#1e293b', mb = 0 }: {
-  w?: string | number; h?: number; color?: string; mb?: number
-}) {
-  return <div style={{ width: w, height: h, background: color, opacity: 0.2, borderRadius: 4, marginBottom: mb }} />
+interface FreeEl { id: string; type: string; label: string; value?: string; color?: string; bg?: string; radius?: number; size?: number; width?: string; height?: number; placeholder?: string; align?: string; src?: string; href?: string; isExternal?: boolean }
+
+function renderFreeElement(el: FreeEl, accentColor: string, textColor: string) {
+  const wrapLink = (child: ReactNode) => {
+    if (!el.href) return child
+    return <a href={el.href} target={el.isExternal ? '_blank' : undefined} rel={el.isExternal ? 'noopener noreferrer' : undefined} className="no-underline">{child}</a>
+  }
+
+  switch (el.type) {
+    case 'text':
+      return wrapLink(<div style={{ color: el.color || textColor, fontSize: el.size || 16, textAlign: (el.align as any) || 'left', opacity: 0.85 }}>{el.value || el.label}</div>)
+    case 'button':
+      return wrapLink(<div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: el.bg || accentColor, color: el.color || '#fff', borderRadius: el.radius ?? 10, fontSize: el.size || 14, fontWeight: 600, padding: '10px 24px' }}>{el.value || el.label}</div>)
+    case 'image':
+      return wrapLink(el.src || el.value ? <img src={el.src || el.value} alt={el.label} style={{ width: el.width || '100%', height: 'auto', borderRadius: 12 }} /> : <div style={{ width: el.width || '100%', height: 160, background: textColor, opacity: 0.06, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon className="w-9 h-9 opacity-20" /></div>)
+    case 'card':
+      return <div style={{ background: el.bg || '#fff', borderRadius: el.radius ?? 12, border: `1px solid ${textColor}15`, padding: 16, opacity: 0.9 }}>{el.value || el.label}</div>
+    default: return null
+  }
 }
 
-interface FreeEl { id: string; type: string; label: string; value?: string; color?: string; bg?: string; radius?: number; size?: number; width?: string; height?: number; placeholder?: string; align?: string }
-
-function FreeEls({ elements, accent }: { elements: FreeEl[]; accent: string }) {
+function FreeEls({ elements, accent, text }: { elements: FreeEl[]; accent: string; text: string }) {
   if (!elements?.length) return null
   return (
-    <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
-      {elements.map(el => {
-        if (el.type === 'text') return <div key={el.id} style={{ color: el.color || '#1e293b', fontSize: el.size || 16, textAlign: (el.align as any) || 'left', opacity: 0.85 }}>{el.value || el.label}</div>
-        if (el.type === 'button') return <div key={el.id} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: el.bg || accent, color: el.color || '#fff', borderRadius: el.radius ?? 10, fontSize: el.size || 14, fontWeight: 600, padding: '10px 24px', alignSelf: 'flex-start' }}>{el.value || el.label}</div>
-        if (el.type === 'input') return <div key={el.id} style={{ background: el.bg || '#f1f5f9', borderRadius: el.radius ?? 8, border: '1px solid #e2e8f0', padding: '10px 14px', fontSize: 13, color: '#94a3b8' }}>{el.placeholder || el.label}</div>
-        if (el.type === 'image') return <div key={el.id} style={{ width: el.width || '100%', height: el.height || 200, background: '#e2e8f0', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #cbd5e1' }}><ImageIcon style={{ width: 28, height: 28, opacity: 0.4, color: '#94a3b8' }} /></div>
-        if (el.type === 'badge') return <div key={el.id} style={{ display: 'flex' }}><span style={{ background: el.bg || accent, color: el.color || '#fff', borderRadius: el.radius ?? 999, fontSize: el.size || 11, fontWeight: 700, padding: '3px 10px' }}>{el.value || el.label}</span></div>
-        if (el.type === 'divider') return <div key={el.id} style={{ width: '100%', height: el.height || 1, background: el.color || '#e2e8f0', borderRadius: 99, margin: '4px 0' }} />
-        return null
-      })}
+    <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
+      {elements.map(el => (
+        <div key={el.id} style={{ position: 'relative' }}>
+          {renderFreeElement(el, accent, text)}
+        </div>
+      ))}
     </div>
   )
 }
 
-export function BlockPreview({ block, isSelected }: { block: ComponentRecord; isSelected: boolean }) {
+export function BlockPreview({ block, isSelected }: { block: any; isSelected?: boolean }) {
   const p: any = block.props || {}
   const type = block.componentType
   const bg = p.bgColor || '#ffffff'
@@ -47,365 +54,139 @@ export function BlockPreview({ block, isSelected }: { block: ComponentRecord; is
   const font = p.fontFamily || 'Inter'
   const px = p.paddingX ?? 48
   const py = p.paddingY ?? 60
-  const border = isSelected ? '2px solid #6366f1' : '2px solid transparent'
   const elements: FreeEl[] = p._elements || []
-  const wrap: React.CSSProperties = { fontFamily: font, background: bg, color: text, paddingLeft: px, paddingRight: px, paddingTop: py, paddingBottom: py, border, transition: 'border 0.15s' }
-  const freeEls = <FreeEls elements={elements} accent={accent} />
+
+  const animationClass = p.animation && p.animation !== 'none' ? `animate-${p.animation}` : ''
+  const wrap: CSSProperties = { 
+    fontFamily: font, background: bg, color: text, 
+    paddingLeft: px, paddingRight: px, paddingTop: py, paddingBottom: py, 
+    position: 'relative',
+    outline: isSelected ? '2px solid #6366f1' : 'none',
+    outlineOffset: -2,
+    transition: 'outline 0.15s'
+  }
+  const freeEls = <FreeEls elements={elements} accent={accent} text={text} />
 
   if (type === 'header') {
     const navLinks = Array.isArray(p.links) ? p.links : []
-    const titlePx = pxFromSizeProp(p.fontSize, 20)
-    const navPx = pxFromSizeProp(p.navFontSize, 14)
-    const headerWrap: CSSProperties = {
-      ...wrap,
-      paddingTop: p.paddingY ?? 18,
-      paddingBottom: p.paddingY ?? 18,
-    }
-    const navEls = navLinks.length === 0 ? (
-      <span style={{ fontSize: 11, color: text, opacity: 0.35, fontStyle: 'italic' }}>No nav links</span>
-    ) : (
-      navLinks.map((link: { label?: string; href?: string }, i: number) => (
-        <span
-          key={i}
-          style={{
-            fontSize: navPx,
-            fontWeight: 600,
-            color: text,
-            opacity: 0.88,
-            paddingBottom: 2,
-            borderBottom: `2px solid ${accent}55`,
-          }}
-        >
-          {String(link.label || link.href || 'Link')}
-        </span>
-      ))
-    )
-    const btnProps = p.button as { text?: string } | undefined
-    const ctaBlock = btnProps?.text ? (
-      <div
-        style={{
-          padding: '8px 16px',
-          background: accent,
-          color: '#fff',
-          borderRadius: 8,
-          fontSize: 13,
-          fontWeight: 600,
-          flexShrink: 0,
-        }}
-      >
-        {String(btnProps.text)}
-      </div>
-    ) : p.button ? (
-      <div style={{ width: 90, height: 32, background: accent, borderRadius: 8, opacity: 0.85, flexShrink: 0 }} />
-    ) : null
-    const titleBlock = (
-      <div
-        style={{
-          fontWeight: 800,
-          fontSize: titlePx,
-          color: text,
-          letterSpacing: '-0.02em',
-          maxWidth: 280,
-        }}
-      >
-        {String(p.title ?? p.brandName ?? 'Site')}
-      </div>
-    )
-    const ctaSep = p.ctaWithNav === false
-    const borderBottom = p.borderBottom ? `1px solid ${p.borderColor || '#e2e8f0'}` : 'none'
-
-    if (p.headerCanvas) {
-      return (
-        <div style={{ width: '100%' }}>
-          <HeaderCanvasPreview
-            p={p}
-            wrapBase={headerWrap}
-            borderBottom={borderBottom}
-            isSelected={isSelected}
-            titleBlock={titleBlock}
-            navEls={navEls}
-            ctaBlock={ctaBlock}
-            ctaSep={ctaSep}
-            hasCta={!!p.button}
-            minH={typeof p.headerCanvasHeight === 'number' && p.headerCanvasHeight > 0 ? p.headerCanvasHeight : 88}
-            freeEls={elements.length > 0 ? <div style={{ width: '100%' }}>{freeEls}</div> : <></>}
-          />
-        </div>
-      )
-    }
-
-    const jMap: Record<string, string> = {
-      start: 'flex-start', center: 'center', end: 'flex-end',
-      between: 'space-between', around: 'space-around', evenly: 'space-evenly',
-    }
-    const iMap: Record<string, string> = {
-      start: 'flex-start', center: 'center', end: 'flex-end', baseline: 'baseline', stretch: 'stretch',
-    }
-    const rowJust = jMap[String(p.rowJustify || 'between')] || 'space-between'
-    const rowIt = iMap[String(p.rowItems || 'center')] || 'center'
-    const isStack = p.headerLayout === 'stack'
-    const brStack =
-      p.stackBrandAlign === 'end' ? 'flex-end' : p.stackBrandAlign === 'start' ? 'flex-start' : 'center'
-    const navStack = jMap[String(p.stackNavJustify || 'center')] || 'center'
-    const gap = typeof p.contentGap === 'number' && p.contentGap > 0 ? p.contentGap : 8
-
-    if (isStack) {
-      return (
-        <div
-          style={{
-            ...wrap,
-            paddingTop: p.paddingY ?? 18,
-            paddingBottom: p.paddingY ?? 18,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'stretch',
-            borderBottom,
-            gap: Math.max(gap, 6),
-          }}
-        >
-          <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', justifyContent: brStack, width: '100%' }}>{titleBlock}</div>
-            <div style={{ width: 48, height: 28, borderRadius: 8, border: `1px solid ${text}30`, flexShrink: 0 }} title="Menu" />
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: p.rowReverse ? 'row-reverse' as const : 'row' as const,
-              flexWrap: 'wrap' as const,
-              justifyContent: navStack,
-              alignItems: rowIt as 'center',
-              gap,
-              minHeight: 32,
-            }}
-          >
-            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', flex: ctaSep ? 1 : undefined }}>
-              {navEls}
-              {!ctaSep && ctaBlock}
-            </div>
-            {ctaSep && ctaBlock}
-          </div>
-          {elements.length > 0 && <div style={{ width: '100%' }}>{freeEls}</div>}
-        </div>
-      )
-    }
-
+    const titlePx = pxFromSizeProp(p.fontSize, 24)
+    const navPx = pxFromSizeProp(p.navFontSize, 15)
+    const headerWrap: CSSProperties = { ...wrap, paddingTop: p.paddingY ?? 20, paddingBottom: p.paddingY ?? 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: p.borderBottom ? `1px solid ${text}15` : 'none' }
+    const navEls = navLinks.map((link: any, i: number) => (
+      <a key={i} href={link.href} style={{ fontSize: navPx, fontWeight: 600, opacity: 0.8, color: 'inherit', textDecoration: 'none', transition: 'opacity 0.2s' }}>
+        {link.label || link.href}
+      </a>
+    ))
+    const titleBlock = <div style={{ fontWeight: 900, fontSize: titlePx, letterSpacing: '-0.03em' }}>{p.title || p.brandName || 'Site'}</div>
+    const ctaBlock = p.ctaText ? <a href={p.ctaUrl} style={{ padding: '10px 24px', background: accent, color: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: 'none', boxShadow: `0 4px 12px ${accent}40` }}>{p.ctaText}</a> : null
+    
     return (
-      <div
-        style={{
-          ...wrap,
-          paddingTop: p.paddingY ?? 18,
-          paddingBottom: p.paddingY ?? 18,
-          display: 'flex',
-          flexDirection: p.rowReverse ? 'row-reverse' as const : 'row' as const,
-          justifyContent: rowJust as 'space-between',
-          alignItems: rowIt as 'center',
-          borderBottom,
-          flexWrap: 'wrap' as const,
-          gap,
-        }}
-      >
+      <header style={headerWrap} className={animationClass}>
         {titleBlock}
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' as const, alignItems: 'center', justifyContent: 'center', flex: ctaSep ? 1 : undefined, minWidth: 0 }}>
+        <nav style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
           {navEls}
-          {!ctaSep && ctaBlock}
-        </div>
-        {ctaSep && ctaBlock}
-        {elements.length > 0 && <div style={{ width: '100%' }}>{freeEls}</div>}
-      </div>
+          {ctaBlock}
+        </nav>
+      </header>
     )
   }
 
   if (type === 'hero') {
     const align = p.align || 'center'
     const flexAlign = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'
-    const btns = Array.isArray(p.buttons) ? p.buttons : []
-    const primaryBtnText = p.primaryBtnText ?? (btns[0] as { text?: string } | undefined)?.text
-    const secondaryBtnText = p.secondaryBtnText ?? (btns[1] as { text?: string } | undefined)?.text
-    const firstImg =
-      typeof p.imageUrl === 'string' && p.imageUrl.trim()
-        ? p.imageUrl
-        : Array.isArray(p.images) && p.images[0] && typeof (p.images[0] as { url?: string }).url === 'string'
-          ? String((p.images[0] as { url: string }).url)
-          : ''
-    const showMedia = p.hasImage === true || !!firstImg
-    return (
-      <div style={{ ...wrap, display: 'flex', flexDirection: 'column', alignItems: flexAlign, textAlign: align as CSSProperties['textAlign'] }}>
-        {showMedia && (
-          <div style={{ width: '100%', height: 220, background: text, opacity: 0.04, borderRadius: 12, marginBottom: 28, overflow: 'hidden' }}>
-            {firstImg ? (
-              <img src={firstImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ImageIcon style={{ color: text, opacity: 0.2, width: 40, height: 40 }} />
-              </div>
-            )}
-          </div>
-        )}
-        {p.title ? <div style={{ fontSize: p.titleSize ? p.titleSize * 0.7 : 36, fontWeight: p.titleWeight || 800, color: text, marginBottom: 12, maxWidth: 500 }}>{p.title}</div> : <SkeletonLine w={340} h={p.titleSize ? p.titleSize * 0.7 : 36} color={text} mb={12} />}
-        {p.subtitle ? <div style={{ fontSize: 14, color: text, opacity: 0.6, marginBottom: 28, maxWidth: 460 }}>{p.subtitle}</div> : <><SkeletonLine w={460} h={14} color={text} mb={6} /><SkeletonLine w={380} h={14} color={text} mb={28} /></>}
-        <div style={{ display: 'flex', gap: 12 }}>
-          {primaryBtnText ? <div style={{ padding: `${p.btnPaddingY ?? 14}px ${p.btnPaddingX ?? 32}px`, background: accent, color: '#fff', borderRadius: p.btnRadius ?? 10, fontSize: 14, fontWeight: 600 }}>{primaryBtnText}</div> : <div style={{ width: 140, height: 46, background: accent, borderRadius: p.btnRadius ?? 10, opacity: 0.9 }} />}
-          {secondaryBtnText ? <div style={{ padding: `${p.btnPaddingY ?? 14}px ${p.btnPaddingX ?? 32}px`, background: 'transparent', border: `2px solid ${accent}`, color: accent, borderRadius: p.btnRadius ?? 10, fontSize: 14, fontWeight: 600 }}>{secondaryBtnText}</div> : <div style={{ width: 120, height: 46, background: 'transparent', border: `2px solid ${accent}`, borderRadius: p.btnRadius ?? 10, opacity: 0.5 }} />}
-        </div>
-        {freeEls}
+    
+    const mediaEl = p.imageUrl ? <img src={p.imageUrl} style={{ maxWidth: '100%', borderRadius: 24, boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.15)', marginTop: 48 }} /> : null
+    const titleEl = p.title ? <h1 style={{ fontSize: p.titleSize || 56, fontWeight: 900, lineHeight: 1.05, marginBottom: 24, letterSpacing: '-0.04em' }}>{p.title}</h1> : null
+    const subtitleEl = p.subtitle ? <p style={{ fontSize: 20, opacity: 0.7, marginBottom: 40, maxWidth: 640, lineHeight: 1.6 }}>{p.subtitle}</p> : null
+    const ctaEl = (p.primaryBtnText || p.secondaryBtnText) ? (
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: flexAlign }}>
+        {p.primaryBtnText && <a href={p.primaryBtnUrl} style={{ background: accent, color: '#fff', padding: '16px 36px', borderRadius: 14, fontWeight: 700, textDecoration: 'none', boxShadow: `0 10px 20px ${accent}30` }}>{p.primaryBtnText}</a>}
+        {p.secondaryBtnText && <a href={p.secondaryBtnUrl} style={{ border: `2px solid ${text}20`, color: 'inherit', padding: '16px 36px', borderRadius: 14, fontWeight: 700, textDecoration: 'none', background: 'rgba(255,255,255,0.05)' }}>{p.secondaryBtnText}</a>}
       </div>
+    ) : null
+
+    return (
+      <section style={{ ...wrap, display: 'flex', flexDirection: 'column', alignItems: flexAlign, textAlign: align as any }} className={animationClass}>
+        {titleEl}
+        {subtitleEl}
+        {ctaEl}
+        {mediaEl}
+        {freeEls}
+      </section>
     )
   }
 
   if (type === 'about') {
     const dir = p.align === 'right' ? 'row-reverse' : 'row'
+    const imageEl = p.imageUrl ? (
+      <div style={{ flex: 1, position: 'relative' }}>
+        <img src={p.imageUrl} style={{ width: '100%', height: 'auto', borderRadius: 24, boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }} />
+      </div>
+    ) : null
+
     return (
-      <div style={{ ...wrap, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', gap: 48, alignItems: 'center', flexDirection: dir as any }}>
-          {p.hasImage && <div style={{ flex: 1, height: 260, background: text, opacity: 0.05, borderRadius: 16, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{(() => {
-            const u = p.imageUrl || (Array.isArray(p.images) && p.images[0] && (p.images[0] as { url?: string }).url)
-            return u ? <img src={String(u)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <ImageIcon style={{ color: text, opacity: 0.2, width: 40, height: 40 }} />
-          })()}</div>}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            {p.title ? <div style={{ fontSize: 28, fontWeight: 700, color: text, marginBottom: 16 }}>{p.title}</div> : <SkeletonLine w={220} h={28} color={text} mb={16} />}
-            {p.description ? <div style={{ fontSize: 14, color: text, opacity: 0.65, marginBottom: 20, lineHeight: 1.6 }}>{p.description}</div> : <>{[100,95,90,80].map((w,i) => <SkeletonLine key={i} w={`${w}%`} h={11} color={text} mb={8} />)}</>}
-            {(p.btnText || (p.button as { text?: string } | undefined)?.text) ? (
-              <div style={{ marginTop: 8, padding: '10px 24px', background: accent, color: '#fff', borderRadius: p.btnRadius ?? 10, fontSize: 14, fontWeight: 600, display: 'inline-block' }}>
-                {String(p.btnText || (p.button as { text?: string } | undefined)?.text)}
-              </div>
-            ) : (
-              <div style={{ marginTop: 12, width: 130, height: 40, background: accent, borderRadius: p.btnRadius ?? 10, opacity: 0.85 }} />
-            )}
+      <section style={wrap} className={animationClass}>
+        <div style={{ display: 'flex', gap: 64, alignItems: 'center', flexDirection: dir as any }}>
+          {imageEl}
+          <div style={{ flex: 1.2 }}>
+            {p.title && <h2 style={{ fontSize: 40, fontWeight: 900, marginBottom: 20, letterSpacing: '-0.02em' }}>{p.title}</h2>}
+            {p.description && <p style={{ fontSize: 18, opacity: 0.7, lineHeight: 1.7, marginBottom: 32 }}>{p.description}</p>}
+            {p.btnText && <a href={p.btnUrl} style={{ display: 'inline-block', background: accent, color: '#fff', padding: '12px 28px', borderRadius: 12, fontWeight: 700, textDecoration: 'none' }}>{p.btnText}</a>}
           </div>
         </div>
         {freeEls}
-      </div>
+      </section>
     )
   }
 
-  if (type === 'services' || type === 'features') {
+  if (['services', 'features', 'products', 'pricing'].includes(type)) {
+    const items = Array.isArray(p.items) ? p.items : []
     const cols = p.columns || 3
-    const rawItems = Array.isArray(p.items) ? p.items : []
-    const normItems: { title: string; description: string }[] = rawItems
-      .map((it: unknown) => {
-        if (typeof it === 'string') return { title: it, description: '' }
-        if (it && typeof it === 'object') {
-          const o = it as { title?: string; description?: string; name?: string }
-          return { title: String(o.title || o.name || ''), description: String(o.description || '') }
-        }
-        return { title: '', description: '' }
-      })
-      .filter((x: { title: string; description: string }) => x.title || x.description)
-    const useItems = normItems.length > 0
-    const colCount = useItems ? Math.min(Math.max(normItems.length, 1), cols) : cols
+    const titleEl = p.title ? <h2 style={{ fontSize: 40, fontWeight: 900, marginBottom: 16, letterSpacing: '-0.02em' }}>{p.title}</h2> : null
+    const subtitleEl = p.subtitle ? <p style={{ fontSize: 18, opacity: 0.6, marginBottom: 56, maxWidth: 700, marginLeft: 'auto', marginRight: 'auto' }}>{p.subtitle}</p> : null
+
+    const gridItems = items.map((item: any, i: number) => (
+      <div key={i} style={{ padding: 32, borderRadius: 24, border: `1px solid ${text}10`, background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(10px)', transition: 'transform 0.3s ease', textAlign: 'left' }}>
+        {item.imageUrl && <img src={item.imageUrl} style={{ width: 56, height: 56, borderRadius: 14, marginBottom: 24, objectFit: 'cover' }} />}
+        <h3 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12 }}>{item.title}</h3>
+        <p style={{ fontSize: 16, opacity: 0.6, lineHeight: 1.6 }}>{item.description}</p>
+        {item.price && <div style={{ marginTop: 24, fontSize: 24, fontWeight: 900, color: accent }}>{item.price}</div>}
+      </div>
+    ))
+
     return (
-      <div style={{ ...wrap, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {p.title ? <div style={{ fontSize: p.titleSize || 28, fontWeight: 700, color: text, marginBottom: 8 }}>{p.title}</div> : <SkeletonLine w={260} h={28} color={text} mb={8} />}
-        {p.subtitle ? <div style={{ fontSize: 14, color: text, opacity: 0.6, marginBottom: 32 }}>{p.subtitle}</div> : <SkeletonLine w={380} h={13} color={text} mb={32} />}
-        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: `repeat(${colCount},1fr)`, gap: 20 }}>
-          {useItems
-            ? normItems.map((item, i) => (
-              <div key={i} style={{ background: p.cardBg || '#f8fafc', padding: 24, borderRadius: p.cardRadius ?? 14, display: 'flex', flexDirection: 'column', alignItems: 'center', border: `1px solid ${accent}20`, textAlign: 'center' }}>
-                <div style={{ width: 44, height: 44, background: accent, borderRadius: 10, marginBottom: 14, opacity: 0.8 }} />
-                {item.title ? <div style={{ fontSize: 16, fontWeight: 700, color: text, marginBottom: 8 }}>{item.title}</div> : <SkeletonLine w="65%" h={16} color={text} mb={10} />}
-                {item.description ? <div style={{ fontSize: 13, color: text, opacity: 0.75, lineHeight: 1.45 }}>{item.description}</div> : <><SkeletonLine w="100%" h={10} color={text} mb={6} /><SkeletonLine w="85%" h={10} color={text} /></>}
-              </div>
-            ))
-            : Array.from({ length: cols }).map((_, i) => (
-              <div key={i} style={{ background: p.cardBg || '#f8fafc', padding: 24, borderRadius: p.cardRadius ?? 14, display: 'flex', flexDirection: 'column', alignItems: 'center', border: `1px solid ${accent}20` }}>
-                <div style={{ width: 44, height: 44, background: accent, borderRadius: 10, marginBottom: 14, opacity: 0.8 }} />
-                <SkeletonLine w="65%" h={16} color={text} mb={10} />
-                <SkeletonLine w="100%" h={10} color={text} mb={6} />
-                <SkeletonLine w="85%" h={10} color={text} />
-              </div>
-            ))}
+      <section style={{ ...wrap, textAlign: 'center' }} className={animationClass}>
+        {titleEl}
+        {subtitleEl}
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 32 }}>
+          {gridItems}
         </div>
         {freeEls}
-      </div>
+      </section>
     )
   }
-
-  if (type === 'products') {
-    const cols = p.columns || 3
-    return (
-      <div style={{ ...wrap, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {p.title ? <div style={{ fontSize: p.titleSize || 28, fontWeight: 700, color: text, marginBottom: 32 }}>{p.title}</div> : <SkeletonLine w={220} h={28} color={text} mb={32} />}
-        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: `repeat(${cols},1fr)`, gap: 16 }}>
-          {Array.from({ length: cols }).map((_, i) => (
-            <div key={i} style={{ background: p.cardBg || '#fff', borderRadius: p.cardRadius ?? 14, overflow: 'hidden', border: `1px solid ${accent}15` }}>
-              <div style={{ height: 160, background: text, opacity: 0.05 }} />
-              <div style={{ padding: 16 }}><SkeletonLine w="70%" h={14} color={text} mb={8} /><SkeletonLine w="40%" h={18} color={accent} mb={12} /><div style={{ height: 32, background: accent, borderRadius: 8, opacity: 0.8 }} /></div>
-            </div>
-          ))}
-        </div>
-        {freeEls}
-      </div>
-    )
-  }
-
-  if (type === 'pricing') return (
-    <div style={{ ...wrap, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {p.title ? <div style={{ fontSize: 28, fontWeight: 700, color: text, marginBottom: 8 }}>{p.title}</div> : <SkeletonLine w={280} h={28} color={text} mb={8} />}
-      {p.subtitle ? <div style={{ fontSize: 14, color: text, opacity: 0.6, marginBottom: 36 }}>{p.subtitle}</div> : <SkeletonLine w={400} h={13} color={text} mb={36} />}
-      <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
-        {[false,true,false].map((f, i) => <div key={i} style={{ background: f ? accent : (p.cardBg || '#f8fafc'), borderRadius: p.cardRadius ?? 16, padding: 28, border: f ? 'none' : `1px solid ${accent}20`, transform: f ? 'scale(1.04)' : 'none' }}><SkeletonLine w="50%" h={16} color={f ? '#fff' : text} mb={8} /><SkeletonLine w="60%" h={32} color={f ? '#fff' : accent} mb={16} />{[1,2,3].map(j => <SkeletonLine key={j} w="85%" h={10} color={f ? '#fff' : text} mb={8} />)}<div style={{ height: 40, background: f ? '#fff' : accent, borderRadius: 10, marginTop: 16, opacity: 0.9 }} /></div>)}
-      </div>
-      {freeEls}
-    </div>
-  )
-
-  if (type === 'clients') return (
-    <div style={{ ...wrap, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {p.title ? <div style={{ fontSize: 26, fontWeight: 700, color: text, marginBottom: 32 }}>{p.title}</div> : <SkeletonLine w={240} h={26} color={text} mb={32} />}
-      <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 16 }}>
-        {Array.from({ length: 5 }).map((_, i) => <div key={i} style={{ height: 60, background: p.cardBg || '#f1f5f9', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 80, height: 24, background: text, opacity: 0.15, borderRadius: 4 }} /></div>)}
-      </div>
-      {freeEls}
-    </div>
-  )
-
-  if (type === 'promo') return (
-    <div style={{ ...wrap, background: accent, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {p.title ? <div style={{ fontSize: p.titleSize || 36, fontWeight: 700, color: '#fff', marginBottom: 8 }}>{p.title}</div> : <SkeletonLine w={320} h={32} color="#fff" mb={8} />}
-      {p.subtitle ? <div style={{ fontSize: 14, color: '#fff', opacity: 0.8, marginBottom: 28 }}>{p.subtitle}</div> : <SkeletonLine w={440} h={14} color="#fff" mb={28} />}
-      {p.btnText ? <div style={{ padding: '14px 36px', background: '#fff', color: accent, borderRadius: p.btnRadius ?? 12, fontSize: 14, fontWeight: 700 }}>{p.btnText}</div> : <div style={{ width: 160, height: 50, background: '#fff', borderRadius: p.btnRadius ?? 12, opacity: 0.9 }} />}
-      {freeEls}
-    </div>
-  )
-
-  if (type === 'contact') return (
-    <div style={{ ...wrap, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {p.title ? <div style={{ fontSize: 26, fontWeight: 700, color: text, marginBottom: 32 }}>{p.title}</div> : <SkeletonLine w={240} h={26} color={text} mb={32} />}
-      <div style={{ width: '100%', maxWidth: 520, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {[1,2,3].map(i => <div key={i} style={{ height: 46, background: p.cardBg || '#f1f5f9', borderRadius: 10, border: `1px solid ${accent}20` }} />)}
-        <div style={{ height: 100, background: p.cardBg || '#f1f5f9', borderRadius: 10, border: `1px solid ${accent}20` }} />
-        <div style={{ height: 48, background: accent, borderRadius: 12, opacity: 0.85 }} />
-      </div>
-      {freeEls}
-    </div>
-  )
 
   if (type === 'footer') {
-    const brand = String(p.title ?? p.brandName ?? '')
-    const fl = p.footerLinks && typeof p.footerLinks === 'object' && !Array.isArray(p.footerLinks)
-      ? p.footerLinks as Record<string, string>
-      : null
-    const linkEntries = fl ? Object.entries(fl).filter(([, href]) => href) : []
     return (
-      <div style={{ ...wrap, display: 'flex', flexDirection: 'column', alignItems: p.align === 'left' ? 'flex-start' : 'center', gap: 12 }}>
-        {brand ? <span style={{ fontWeight: 800, fontSize: 18, color: accent }}>{brand}</span> : <div style={{ width: 120, height: 24, background: accent, opacity: 0.8, borderRadius: 6 }} />}
-        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', justifyContent: p.align === 'left' ? 'flex-start' : 'center' }}>
-          {linkEntries.length > 0
-            ? linkEntries.map(([label, href], i) => (
-              <span key={i} style={{ fontSize: 13, color: text, opacity: 0.75 }}>{label || href}</span>
-            ))
-            : [80, 70, 90, 65].map((w, i) => <SkeletonLine key={i} w={w} h={11} color={text} />)}
+      <footer style={{ ...wrap, borderTop: `1px solid ${text}10`, paddingTop: 60, paddingBottom: 60 }} className={animationClass}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 32 }}>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 24, marginBottom: 8 }}>{p.brandName || 'Site'}</div>
+            <p style={{ opacity: 0.5, fontSize: 14 }}>{p.copyright || `© ${new Date().getFullYear()} All rights reserved.`}</p>
+          </div>
+          <div style={{ display: 'flex', gap: 24 }}>
+            {/* Optional footer links could go here */}
+          </div>
         </div>
-        {p.copyright ? <div style={{ fontSize: 12, color: text, opacity: 0.5 }}>{p.copyright}</div> : <SkeletonLine w={220} h={10} color={text} />}
         {freeEls}
-      </div>
+      </footer>
     )
   }
 
   return (
-    <div style={{ ...wrap, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <Package style={{ color: text, opacity: 0.2, width: 36, height: 36, marginBottom: 12 }} />
-      <SkeletonLine w={150} h={14} color={text} />
+    <div style={wrap} className={animationClass}>
+      {p.title && <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>{p.title}</h2>}
+      {p.subtitle && <p style={{ opacity: 0.7, lineHeight: 1.6 }}>{p.subtitle}</p>}
       {freeEls}
     </div>
   )

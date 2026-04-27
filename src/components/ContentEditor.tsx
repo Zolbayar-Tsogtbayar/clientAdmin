@@ -1,11 +1,13 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Save, Loader2, Image as ImageIcon, Link, AlignLeft, Type, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
-import type { ComponentRecord } from '@/lib/api'
+import { Save, Loader2, Image as ImageIcon, Link, AlignLeft, Type, Plus, Trash2, ChevronUp, ChevronDown, Upload } from 'lucide-react'
+import { useAuthStore } from '@/stores/authStore'
+import { useProjectStore } from '@/stores/projectStore'
+import { api, type ComponentRecord } from '@/lib/api'
 
 // ── Field definitions per component type ─────────────────────────────────────
 
-type FieldType = 'text' | 'textarea' | 'url' | 'image'
+type FieldType = 'text' | 'textarea' | 'url' | 'image' | 'items'
 
 interface FieldDef {
   key: string
@@ -39,21 +41,26 @@ const CONTENT_FIELDS: Record<string, FieldDef[]> = {
   services: [
     { key: 'title',    label: 'Хэсгийн гарчиг', type: 'text',     placeholder: 'Манай үйлчилгээ' },
     { key: 'subtitle', label: 'Дэд гарчиг',      type: 'textarea', placeholder: 'Богино тайлбар...' },
+    { key: 'items',    label: 'Үйлчилгээний жагсаалт (Картууд)', type: 'items' },
   ],
   features: [
     { key: 'title',    label: 'Хэсгийн гарчиг', type: 'text',     placeholder: 'Онцлог давуу талууд' },
     { key: 'subtitle', label: 'Дэд гарчиг',      type: 'textarea', placeholder: 'Богино тайлбар...' },
+    { key: 'items',    label: 'Онцлох жагсаалт', type: 'items' },
   ],
   products: [
     { key: 'title',    label: 'Хэсгийн гарчиг', type: 'text', placeholder: 'Бүтээгдэхүүн' },
     { key: 'subtitle', label: 'Дэд гарчиг',      type: 'textarea', placeholder: 'Богино тайлбар...' },
+    { key: 'items',    label: 'Бүтээгдэхүүний жагсаалт', type: 'items' },
   ],
   pricing: [
     { key: 'title',    label: 'Хэсгийн гарчиг', type: 'text',     placeholder: 'Үнийн санал' },
     { key: 'subtitle', label: 'Дэд гарчиг',      type: 'textarea', placeholder: 'Тохиромжтой багцаа сонгоно уу' },
+    { key: 'items',    label: 'Багцууд', type: 'items' },
   ],
   clients: [
     { key: 'title', label: 'Хэсгийн гарчиг', type: 'text', placeholder: 'Бидний харилцагчид' },
+    { key: 'items', label: 'Харилцагчдын жагсаалт', type: 'items' },
   ],
   promo: [
     { key: 'title',   label: 'Гарчиг',         type: 'text',     placeholder: 'Промо мессеж' },
@@ -78,6 +85,7 @@ const FIELD_ICONS: Record<FieldType, React.ReactNode> = {
   textarea: <AlignLeft className="w-3 h-3" />,
   url:      <Link className="w-3 h-3" />,
   image:    <ImageIcon className="w-3 h-3" />,
+  items:    <AlignLeft className="w-3 h-3" />,
 }
 
 // ── Free elements (Superadmin Inspector parity) ───────────────────────────────
@@ -148,12 +156,7 @@ const ELEMENT_DEFAULTS: Record<FreeElType, Partial<FreeEl>> = {
 
 function FreeElContent({ el, onChange }: { el: FreeEl; onChange: (patch: Partial<FreeEl>) => void }) {
   const showValue = ['text', 'button', 'badge'].includes(el.type)
-  const showPlaceholder = el.type === 'input'
   const showImageUrl = el.type === 'image'
-  const showDims = ['image', 'card', 'section', 'divider'].includes(el.type)
-  const showBg = ['button', 'badge', 'card', 'section', 'input'].includes(el.type)
-  const showRadius = ['button', 'badge', 'card', 'section', 'input'].includes(el.type)
-  const showAlign = el.type === 'text' || el.type === 'menu'
   const showHref = ['text', 'button', 'image', 'card', 'badge'].includes(el.type)
 
   return (
@@ -163,25 +166,11 @@ function FreeElContent({ el, onChange }: { el: FreeEl; onChange: (patch: Partial
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex-1">{el.label}</p>
         <span className="text-[9px] text-slate-400 font-mono">{el.type}</span>
       </div>
-      <input
-        value={el.label}
-        onChange={e => onChange({ label: e.target.value })}
-        placeholder="Нэр"
-        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
-      />
       {showValue && (
         <input
           value={el.value || ''}
           onChange={e => onChange({ value: e.target.value })}
           placeholder={`${el.label} текст...`}
-          className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
-        />
-      )}
-      {showPlaceholder && (
-        <input
-          value={el.placeholder || ''}
-          onChange={e => onChange({ placeholder: e.target.value })}
-          placeholder="Placeholder текст..."
           className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
         />
       )}
@@ -193,85 +182,6 @@ function FreeElContent({ el, onChange }: { el: FreeEl; onChange: (patch: Partial
           className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 font-mono"
         />
       )}
-      {showBg && (
-        <label className="text-[9px] text-slate-500 block">
-          Арын өнгө
-          <input
-            type="text"
-            value={el.bg || ''}
-            onChange={e => onChange({ bg: e.target.value })}
-            className="mt-0.5 w-full text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white font-mono"
-          />
-        </label>
-      )}
-      {(showValue || el.type === 'divider' || el.type === 'menu') && (
-        <label className="text-[9px] text-slate-500 block">
-          Өнгө
-          <input
-            type="text"
-            value={el.color || ''}
-            onChange={e => onChange({ color: e.target.value })}
-            className="mt-0.5 w-full text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white font-mono"
-          />
-        </label>
-      )}
-      {showRadius && (
-        <label className="text-[9px] text-slate-500 block">
-          Радиус (px)
-          <input
-            type="number"
-            value={el.radius ?? ''}
-            onChange={e => onChange({ radius: e.target.value === '' ? undefined : Number(e.target.value) })}
-            className="mt-0.5 w-full text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white"
-          />
-        </label>
-      )}
-      {(showValue || el.type === 'menu') && (
-        <label className="text-[9px] text-slate-500 block">
-          Фонтын хэмжээ
-          <input
-            type="number"
-            value={el.size ?? ''}
-            onChange={e => onChange({ size: e.target.value === '' ? undefined : Number(e.target.value) })}
-            className="mt-0.5 w-full text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white"
-          />
-        </label>
-      )}
-      {showDims && (
-        <label className="text-[9px] text-slate-500 block">
-          Өндөр (px) / өргөн
-          <div className="flex gap-1 mt-0.5">
-            <input
-              type="number"
-              value={el.height ?? ''}
-              onChange={e => onChange({ height: e.target.value === '' ? undefined : Number(e.target.value) })}
-              className="w-1/2 text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white"
-              placeholder="h"
-            />
-            <input
-              type="text"
-              value={el.width || ''}
-              onChange={e => onChange({ width: e.target.value })}
-              className="w-1/2 text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white font-mono"
-              placeholder="100%"
-            />
-          </div>
-        </label>
-      )}
-      {showAlign && (
-        <label className="text-[9px] text-slate-500 block">
-          Тэгшитгэл
-          <select
-            value={el.align || 'left'}
-            onChange={e => onChange({ align: e.target.value })}
-            className="mt-0.5 w-full text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white"
-          >
-            <option value="left">Зүүн</option>
-            <option value="center">Төв</option>
-            <option value="right">Баруун</option>
-          </select>
-        </label>
-      )}
       {showHref && (
         <input
           value={el.href || ''}
@@ -280,10 +190,61 @@ function FreeElContent({ el, onChange }: { el: FreeEl; onChange: (patch: Partial
           className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white font-mono"
         />
       )}
-      {el.type === 'menu' && (
-        <p className="text-[9px] text-slate-400 leading-snug">
-          Цэсийн холбоосуудыг Superadmin Inspector-оос нэмж тохируулна. Энд зөвхөн хэмжээ/өнгө.
-        </p>
+    </div>
+  )
+}
+
+function ImageUploadField({ value, onChange, placeholder }: { value: string; onChange: (val: string) => void; placeholder?: string }) {
+  const [uploading, setUploading] = useState(false)
+  const { accessToken } = useAuthStore()
+  const { selectedProject } = useProjectStore()
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !accessToken || !selectedProject) return
+
+    setUploading(true)
+    try {
+      const data = await api.uploadImage(accessToken, selectedProject, file)
+      if (data.url) {
+        onChange(data.url)
+      } else {
+        alert('Upload failed')
+      }
+    } catch (err: any) {
+      console.error(err)
+      alert(err.message || 'Upload error')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <ImageIcon className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+        <input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder || 'https://...'}
+          className="w-full pl-9 pr-20 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
+        />
+        <label className="absolute right-1 top-1 bottom-1 px-3 flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg cursor-pointer transition-colors text-[10px] font-bold uppercase tracking-wider">
+          {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+          <span>{uploading ? '...' : 'Upload'}</span>
+          <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} disabled={uploading} />
+        </label>
+      </div>
+      {value && (
+        <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-100 bg-slate-50">
+          <img src={value} alt="Preview" className="w-full h-full object-cover" />
+          <button 
+            onClick={() => onChange('')}
+            className="absolute top-1 right-1 p-1 bg-white/80 hover:bg-white text-red-500 rounded-md shadow-sm transition-colors"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
       )}
     </div>
   )
@@ -296,96 +257,18 @@ function FreeElementsPanel({
   elements: FreeEl[]
   onChange: (els: FreeEl[]) => void
 }) {
-  const [showPicker, setShowPicker] = useState(false)
-
-  const add = (t: FreeElType) => {
-    const base = ELEMENT_DEFAULTS[t]
-    const id = `el-${Date.now()}`
-    const el: FreeEl = { id, type: t, ...base, label: String(base.label || t) }
-    onChange([...elements, el])
-    setShowPicker(false)
-  }
-
-  const move = (index: number, dir: 'up' | 'down') => {
-    const j = dir === 'up' ? index - 1 : index + 1
-    if (j < 0 || j >= elements.length) return
-    const next = [...elements]
-    ;[next[index], next[j]] = [next[j], next[index]]
-    onChange(next)
-  }
-
-  const remove = (id: string) => onChange(elements.filter(e => e.id !== id))
+  if (elements.length === 0) return null
 
   return (
     <div className="space-y-2 pt-2 border-t border-slate-100">
-      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Нэмэлт элементүүд</p>
-      {elements.map((el, i) => (
-        <div key={el.id} className="space-y-1">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              title="Дээш"
-              onClick={() => move(i, 'up')}
-              disabled={i === 0}
-              className="p-1 rounded border border-slate-200 text-slate-500 disabled:opacity-30"
-            >
-              <ChevronUp className="w-3 h-3" />
-            </button>
-            <button
-              type="button"
-              title="Доош"
-              onClick={() => move(i, 'down')}
-              disabled={i === elements.length - 1}
-              className="p-1 rounded border border-slate-200 text-slate-500 disabled:opacity-30"
-            >
-              <ChevronDown className="w-3 h-3" />
-            </button>
-            <button
-              type="button"
-              title="Устгах"
-              onClick={() => remove(el.id)}
-              className="p-1 rounded border border-red-100 text-red-500 ml-auto"
-            >
-              <Trash2 className="w-3 h-3" />
-            </button>
-          </div>
-          <FreeElContent el={el} onChange={patch => onChange(elements.map(e => (e.id === el.id ? { ...e, ...patch } : e)))} />
-        </div>
+      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Нэмэлт элементүүд (Засварлах)</p>
+      {elements.map((el) => (
+        <FreeElContent 
+          key={el.id} 
+          el={el} 
+          onChange={patch => onChange(elements.map(e => (e.id === el.id ? { ...e, ...patch } : e)))} 
+        />
       ))}
-
-      {showPicker ? (
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 mb-2 px-1">Элемент нэмэх</p>
-          <div className="grid grid-cols-3 gap-1 sm:grid-cols-4">
-            {ELEMENT_TYPES.map(({ type, label }) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => add(type)}
-                className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg hover:bg-indigo-100 text-indigo-700 transition-colors"
-              >
-                <span className="text-base leading-none">{ELEMENT_ICONS[type]}</span>
-                <span className="text-[9px] font-bold text-center leading-tight">{label}</span>
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowPicker(false)}
-            className="mt-1.5 w-full text-[10px] text-slate-500 hover:text-slate-700"
-          >
-            Хаах
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setShowPicker(true)}
-          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border-2 border-dashed border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600 text-xs font-bold transition-all"
-        >
-          <Plus className="w-3.5 h-3.5" /> Элемент нэмэх
-        </button>
-      )}
     </div>
   )
 }
@@ -393,7 +276,7 @@ function FreeElementsPanel({
 // ── Main ContentEditor ────────────────────────────────────────────────────────
 
 export interface SavePayload {
-  textFields: Record<string, string | number>
+  textFields: Record<string, any>
   imageFields: Record<string, string>   // key → URL (single-image props like imageUrl)
   newProps: Record<string, unknown>
 }
@@ -408,14 +291,23 @@ export function ContentEditor({ block, onSave, isSaving }: Props) {
   const type = block.componentType
   const fields = CONTENT_FIELDS[type] ?? []
   const [values, setValues] = useState<Record<string, string>>({})
+  const [itemArrays, setItemArrays] = useState<Record<string, any[]>>({})
   const [elements, setElements] = useState<FreeEl[]>([])
   const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
     const p: any = block.props || {}
     const init: Record<string, string> = {}
-    for (const f of fields) init[f.key] = String(p[f.key] ?? '')
+    const arrays: Record<string, any[]> = {}
+    for (const f of fields) {
+      if (f.type === 'items') {
+        arrays[f.key] = Array.isArray(p[f.key]) ? p[f.key] : []
+      } else {
+        init[f.key] = String(p[f.key] ?? '')
+      }
+    }
     setValues(init)
+    setItemArrays(arrays)
     setElements((p._elements as FreeEl[]) || [])
     setDirty(false)
   }, [block.instanceId])
@@ -425,19 +317,27 @@ export function ContentEditor({ block, onSave, isSaving }: Props) {
     setDirty(true)
   }
 
+  const setItemArray = (key: string, arr: any[]) => {
+    setItemArrays(v => ({ ...v, [key]: arr }))
+    setDirty(true)
+  }
+
   const updateEl = (id: string, patch: Partial<FreeEl>) => {
     setElements(els => els.map(e => e.id === id ? { ...e, ...patch } : e))
     setDirty(true)
   }
 
   const handleSave = async () => {
-    const textFields: Record<string, string | number> = {}
+    const textFields: Record<string, any> = {}
     const imageFields: Record<string, string> = {}
     for (const f of fields) {
-      const v = values[f.key] ?? ''
-      if (!v.trim()) continue
-      if (f.type === 'image') imageFields[f.key] = v
-      else textFields[f.key] = v
+      if (f.type === 'items') {
+        textFields[f.key] = itemArrays[f.key] || []
+      } else {
+        const v = values[f.key] ?? ''
+        if (!v.trim()) continue
+        textFields[f.key] = v
+      }
     }
     const newProps = { ...(block.props || {}), ...textFields, ...imageFields, _elements: elements }
     await onSave(block.instanceId, { textFields, imageFields, newProps })
@@ -477,11 +377,57 @@ export function ContentEditor({ block, onSave, isSaving }: Props) {
             <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Үндсэн контент</p>
             {fields.map(f => (
               <div key={f.key} className="space-y-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400">{FIELD_ICONS[f.type]}</span>
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{f.label}</label>
-                </div>
-                {f.type === 'textarea' ? (
+                <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-0.5">
+                  <span className="text-indigo-400">{FIELD_ICONS[f.type] || <Type className="w-3.5 h-3.5" />}</span>
+                  {f.label}
+                </label>
+                {f.type === 'items' ? (
+                  <div className="space-y-2 border border-slate-200 rounded-xl p-2.5 bg-slate-50/50">
+                    {(itemArrays[f.key] || []).map((item, idx) => (
+                      <div key={idx} className="bg-white border border-slate-200 rounded-lg p-3 text-xs space-y-2 shadow-sm relative group">
+                        <button
+                          onClick={() => {
+                            const arr = [...(itemArrays[f.key] || [])]; arr.splice(idx, 1); setItemArray(f.key, arr)
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-100 text-red-500 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                        <input
+                          value={item.title || ''}
+                          onChange={e => {
+                            const arr = [...(itemArrays[f.key] || [])]; arr[idx] = {...arr[idx], title: e.target.value}; setItemArray(f.key, arr)
+                          }}
+                          placeholder="Гарчиг"
+                          className="w-full border-b border-slate-100 pb-1 focus:border-indigo-400 focus:outline-none placeholder:text-slate-300 font-bold"
+                        />
+                        <textarea
+                          value={item.description || ''}
+                          onChange={e => {
+                            const arr = [...(itemArrays[f.key] || [])]; arr[idx] = {...arr[idx], description: e.target.value}; setItemArray(f.key, arr)
+                          }}
+                          placeholder="Тайлбар..."
+                          rows={2}
+                          className="w-full resize-none pt-1 focus:outline-none placeholder:text-slate-300"
+                        />
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => {
+                        const arr = [...(itemArrays[f.key] || []), { title: '', description: '' }]; setItemArray(f.key, arr)
+                      }}
+                      className="flex items-center justify-center gap-1 w-full py-2 text-[10px] font-bold text-indigo-500 uppercase tracking-wider bg-indigo-50 hover:bg-indigo-100 transition-colors rounded-lg border border-indigo-100 border-dashed"
+                    >
+                      <Plus className="w-3 h-3" /> Карт нэмэх
+                    </button>
+                  </div>
+                ) : f.type === 'image' ? (
+                  <ImageUploadField 
+                    value={values[f.key] ?? ''} 
+                    onChange={val => set(f.key, val)} 
+                    placeholder={f.placeholder}
+                  />
+                ) : f.type === 'textarea' ? (
                   <textarea
                     value={values[f.key] ?? ''}
                     onChange={e => set(f.key, e.target.value)}
@@ -491,11 +437,11 @@ export function ContentEditor({ block, onSave, isSaving }: Props) {
                   />
                 ) : (
                   <input
-                    type={f.type === 'url' || f.type === 'image' ? 'url' : 'text'}
+                    type={f.type === 'url' ? 'url' : 'text'}
                     value={values[f.key] ?? ''}
                     onChange={e => set(f.key, e.target.value)}
                     placeholder={f.placeholder}
-                    className={`w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-400 ${f.type === 'url' || f.type === 'image' ? 'font-mono' : ''}`}
+                    className={`w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-400 ${f.type === 'url' ? 'font-mono' : ''}`}
                   />
                 )}
               </div>

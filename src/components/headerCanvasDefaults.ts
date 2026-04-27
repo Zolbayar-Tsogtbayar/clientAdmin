@@ -1,6 +1,6 @@
-/** Mirrors superadmin / cmsBuilder header zone defaults (percent 0–100). */
+/** Keep in sync with `cmsBuilder/src/components/headerCanvasUtils.ts` (percent 0–100, l = left, t = top). */
 
-export type HeaderZoneKey = 'brand' | 'nav' | 'cta' | 'mobileMenu'
+export type HeaderZoneKey = 'brand' | 'nav' | 'cta' | 'mobileMenu' | string
 
 export type HeaderZonePos = { l: number; t: number }
 
@@ -16,12 +16,20 @@ export const DEFAULT_HEADER_ZONES: HeaderZones = {
 export function mergeHeaderZones(
   input?: Partial<Record<HeaderZoneKey, Partial<HeaderZonePos> | undefined>> | null,
 ): HeaderZones {
-  return {
+  const out = {
     brand: { ...DEFAULT_HEADER_ZONES.brand, ...input?.brand },
     nav: { ...DEFAULT_HEADER_ZONES.nav, ...input?.nav },
     cta: { ...DEFAULT_HEADER_ZONES.cta, ...input?.cta },
     mobileMenu: { ...DEFAULT_HEADER_ZONES.mobileMenu, ...input?.mobileMenu },
+  } as HeaderZones
+  if (input) {
+    for (const k of Object.keys(input)) {
+      if (!out[k] && typeof input[k] === 'object') {
+        out[k] = input[k] as HeaderZonePos
+      }
+    }
   }
+  return out
 }
 
 export function clampHeaderZone(l: number, t: number): HeaderZonePos {

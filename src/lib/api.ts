@@ -12,7 +12,7 @@ function parseEnvelope<T>(json: unknown): T {
 async function req<T>(path: string, opts: RequestInit & { token?: string | null; project?: string | null } = {}): Promise<T> {
   const { token, project, headers: h, ...rest } = opts
   const headers = new Headers(h as HeadersInit)
-  if (!headers.has('Content-Type') && rest.body) headers.set('Content-Type', 'application/json')
+  if (!headers.has('Content-Type') && rest.body && !(rest.body instanceof FormData)) headers.set('Content-Type', 'application/json')
   if (token) headers.set('Authorization', `Bearer ${token}`)
   if (project) headers.set('x-project-id', project)
 
@@ -78,7 +78,7 @@ export const api = {
     ),
 
   /** Update whitelisted text/scalar fields for a block */
-  saveBlockText: (token: string, project: string, instanceId: string, fields: Record<string, string | number>) =>
+  saveBlockText: (token: string, project: string, instanceId: string, fields: Record<string, any>) =>
     req<{ success: boolean; component: ComponentRecord }>(
       `/content-admin/blocks/${encodeURIComponent(instanceId)}/text`,
       { method: 'POST', token, project, body: JSON.stringify({ fields }) },
@@ -98,10 +98,18 @@ export const api = {
       { method: 'POST', token, project, body: JSON.stringify({ items, mode }) },
     ),
 
-  /** Replace freeform `_elements` array (matches superadmin Inspector). */
-  saveBlockElements: (token: string, project: string, instanceId: string, elements: unknown[]) =>
-    req<{ success: boolean; component: ComponentRecord }>(
-      `/content-admin/blocks/${encodeURIComponent(instanceId)}/elements`,
-      { method: 'POST', token, project, body: JSON.stringify({ elements }) },
-    ),
+  /** Upload file to backend and get public URL */
+  uploadImage: (token: string, project: string, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return req<{ success: boolean; url: string }>('/content-admin/upload', {
+      method: 'POST',
+      token,
+      project,
+      body: formData,
+      headers: {
+        // Fetch will set correct boundary if we don't set Content-Type manually
+      }
+    })
+  },
 }
