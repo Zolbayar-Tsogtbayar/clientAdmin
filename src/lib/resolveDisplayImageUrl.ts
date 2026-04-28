@@ -11,6 +11,12 @@ export function resolveDisplayImageUrl(raw: string | undefined | null): string {
   const s = typeof raw === 'string' ? raw.trim() : ''
   if (!s) return ''
 
+  // 1. Handle local project uploads (relative paths without leading slash)
+  if (!s.startsWith('http') && !s.startsWith('/')) {
+    const baseUrl = process.env.NEXT_PUBLIC_CMS_API_URL?.replace('/api/v2', '') || 'http://202.179.6.77:4000';
+    return `${baseUrl}/uploads/${s}`;
+  }
+
   try {
     const u = new URL(s)
     const host = u.hostname.replace(/^www\./i, '').toLowerCase()

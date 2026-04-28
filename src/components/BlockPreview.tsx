@@ -1,6 +1,12 @@
 'use client'
-import { useMemo, type CSSProperties, type ReactNode } from 'react'
-import { Image as ImageIcon, Package } from 'lucide-react'
+import { useState, useRef, useCallback, useMemo } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import { BlockSection } from './templates'
+import { Image as ImageIcon, Package, Copy, Trash2, MoveVertical, ArrowUp, ArrowDown, Move } from 'lucide-react'
+import { HeaderCanvasPreview } from './HeaderCanvasPreview'
+import { ZoneCanvasPreview } from './ZoneCanvasPreview'
+import { defaultBlockCanvasHeight, isBuilderBlockCanvasType } from './sectionCanvasDefaults'
+import { resolveDisplayImageUrl } from '@/lib/resolveDisplayImageUrl'
 
 function pxFromSizeProp(v: unknown, fallback: number): number {
   if (typeof v === 'number' && Number.isFinite(v)) return v
@@ -11,216 +17,660 @@ function pxFromSizeProp(v: unknown, fallback: number): number {
   return fallback
 }
 
-interface FreeEl { id: string; type: string; label: string; value?: string; color?: string; bg?: string; radius?: number; size?: number; width?: string; height?: number; placeholder?: string; align?: string; src?: string; href?: string; isExternal?: boolean }
+// ─── Skeleton helpers ─────────────────────────────────────────────────────────
 
-function renderFreeElement(el: FreeEl, accentColor: string, textColor: string) {
-  const wrapLink = (child: ReactNode) => {
-    if (!el.href) return child
-    return <a href={el.href} target={el.isExternal ? '_blank' : undefined} rel={el.isExternal ? 'noopener noreferrer' : undefined} className="no-underline">{child}</a>
-  }
+function SkeletonLine({ w = '100%', h = 14, color = '#1e293b', mb = 0 }: {
+  w?: string | number; h?: number; color?: string; mb?: number
+}) {
+  return <div style={{ width: w, height: h, background: color, opacity: 0.2, borderRadius: 4, marginBottom: mb }} />
+}
 
+// ─── Free elements renderer ───────────────────────────────────────────────────
+
+interface FreeElement {
+  id: string; type: string; label: string; value?: string
+  color?: string; bg?: string; radius?: number; size?: number
+  width?: string; height?: number; placeholder?: string; align?: string
+  src?: string
+  links?: unknown; href?: string; isExternal?: boolean
+  x?: number; y?: number
+}
+
+function wrapLink(el: FreeElement, child: React.ReactNode) {
+  if (!el.href) return child
+  return (
+    <a href={el.href} target={el.isExternal ? '_blank' : undefined} rel={el.isExternal ? 'noopener noreferrer' : undefined} style={{ textDecoration: 'none' }}>
+      {child}
+    </a>
+  )
+}
+
+export function renderFreeElement(el: FreeElement, accentColor: string, textColor: string) {
   switch (el.type) {
     case 'text':
-      return wrapLink(<div style={{ color: el.color || textColor, fontSize: el.size || 16, textAlign: (el.align as any) || 'left', opacity: 0.85 }}>{el.value || el.label}</div>)
+      const textH = el.height || (el.size ? el.size * 0.7 : 14)
+      return wrapLink(el, 
+        <div style={{
+          width: el.width || '80%',
+          height: textH,
+          background: el.color || textColor,
+          opacity: 0.2,
+          borderRadius: 4,
+          margin: '4px 0'
+        }} />
+      )
+
     case 'button':
-      return wrapLink(<div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: el.bg || accentColor, color: el.color || '#fff', borderRadius: el.radius ?? 10, fontSize: el.size || 14, fontWeight: 600, padding: '10px 24px' }}>{el.value || el.label}</div>)
-    case 'image':
-      return wrapLink(el.src || el.value ? <img src={el.src || el.value} alt={el.label} style={{ width: el.width || '100%', height: 'auto', borderRadius: 12 }} /> : <div style={{ width: el.width || '100%', height: 160, background: textColor, opacity: 0.06, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ImageIcon className="w-9 h-9 opacity-20" /></div>)
+      return wrapLink(el,
+        <div style={{
+          width: el.width || 140,
+          height: el.height || 46,
+          background: el.bg || accentColor,
+          borderRadius: el.radius ?? 10,
+          opacity: 0.9,
+          display: 'inline-block'
+        }} />
+      )
+
+    case 'input':
+      return (
+        <div style={{
+          width: el.width || 200,
+          height: el.height || 46,
+          background: el.bg || textColor,
+          opacity: 0.08,
+          borderRadius: el.radius ?? 8,
+          border: `1px solid ${textColor}22`,
+          display: 'inline-block'
+        }} />
+      )
+
+    case 'image': {
+      const displaySrc = el.src ? resolveDisplayImageUrl(el.src) : ''
+      if (displaySrc) {
+        return wrapLink(el,
+          <img
+            src={displaySrc}
+            alt={el.label || ''}
+            referrerPolicy="no-referrer"
+            style={{
+              width: (el.width as string | number | undefined) || '100%',
+              maxHeight: el.height || 160,
+              height: 'auto',
+              objectFit: 'contain',
+              borderRadius: 12,
+              display: 'block',
+            }}
+          />,
+        )
+      }
+      return wrapLink(el,
+        <div style={{
+          width: el.width || '100%',
+          height: el.height || 160,
+          background: textColor,
+          opacity: 0.06,
+          borderRadius: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <ImageIcon style={{ width: 36, height: 36, opacity: 0.25, color: textColor }} />
+        </div>
+      )
+    }
+
     case 'card':
-      return <div style={{ background: el.bg || '#fff', borderRadius: el.radius ?? 12, border: `1px solid ${textColor}15`, padding: 16, opacity: 0.9 }}>{el.value || el.label}</div>
-    default: return null
+      return wrapLink(el,
+        <div style={{
+          width: el.width || '100%',
+          height: el.height || 120,
+          background: el.bg || '#ffffff',
+          borderRadius: el.radius ?? 12,
+          border: `1px solid ${textColor}15`,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          opacity: 0.8,
+        }}>
+          <div style={{ width: '40%', height: 12, background: textColor, opacity: 0.15, borderRadius: 4 }} />
+        </div>
+      )
+
+    case 'section':
+      return (
+        <div style={{
+          width: el.width || '100%',
+          height: el.height || 80,
+          background: el.bg || textColor,
+          opacity: 0.03,
+          borderRadius: 8,
+          border: `1px dashed ${textColor}33`,
+        }} />
+      )
+
+    case 'divider':
+      return (
+        <div style={{
+          width: el.width || '100%',
+          height: el.height || 1,
+          background: el.color || textColor,
+          opacity: 0.15,
+          borderRadius: 99,
+          margin: '12px 0',
+        }} />
+      )
+
+    case 'badge':
+      return wrapLink(el,
+        <div style={{ display: 'flex' }}>
+          <div style={{
+            width: el.width || 60,
+            height: 20,
+            background: el.bg || accentColor,
+            borderRadius: el.radius ?? 999,
+            opacity: 0.8,
+            display: 'inline-block',
+          }} />
+        </div>
+      )
+
+    case 'menu':
+      const navLinks = Array.isArray(el.links) ? el.links : []
+      if (navLinks.length === 0) {
+        return <span style={{ fontSize: 11, color: textColor, opacity: 0.35, fontStyle: 'italic' }}>Цэс хоосон</span>
+      }
+      return (
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', justifyContent: el.align as any || 'center' }}>
+          {navLinks.map((link: any, i: number) => (
+            <div
+              key={i}
+              style={{
+                width: 48,
+                height: el.size ? el.size * 0.7 : 12,
+                background: el.color || textColor,
+                opacity: 0.2,
+                borderRadius: 4,
+              }}
+            />
+          ))}
+        </div>
+      )
+
+    default:
+      return null
   }
 }
 
-function FreeEls({ elements, accent, text }: { elements: FreeEl[]; accent: string; text: string }) {
-  if (!elements?.length) return null
+// ─── Interactive Free Elements Renderer (Read-only in clientAdmin by default) ───
+
+function FreeElementsRenderer({ elements, accentColor, textColor, onPatchElements }: {
+  elements: FreeElement[]; accentColor: string; textColor: string
+  onPatchElements?: (newElements: FreeElement[]) => void
+}) {
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  if (!elements || elements.length === 0) return null
+
   return (
-    <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-      {elements.map(el => (
-        <div key={el.id} style={{ position: 'relative' }}>
-          {renderFreeElement(el, accent, text)}
+    <div
+      style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}
+      onClick={e => { e.stopPropagation(); setSelectedId(null) }}
+    >
+      {elements.map((el, i) => (
+        <div
+          key={el.id}
+          style={{
+            position: (el.x !== undefined || el.y !== undefined) ? 'absolute' : 'relative',
+            left: el.x,
+            top: el.y,
+            zIndex: (el.x !== undefined || el.y !== undefined) ? 10 : 1,
+            width: el.width || (el.type === 'button' ? '140px' : el.type === 'input' ? '200px' : el.type === 'badge' ? '60px' : el.type === 'text' ? '80%' : undefined),
+          }}
+        >
+          {renderFreeElement(el, accentColor, textColor)}
         </div>
       ))}
     </div>
   )
 }
 
-export function BlockPreview({ block, isSelected }: { block: any; isSelected?: boolean }) {
-  const p: any = block.props || {}
-  const type = block.componentType
-  const bg = p.bgColor || '#ffffff'
-  const text = p.textColor || '#1e293b'
-  const accent = p.accentColor || '#6366f1'
-  const font = p.fontFamily || 'Inter'
-  const px = p.paddingX ?? 48
-  const py = p.paddingY ?? 60
-  const elements: FreeEl[] = p._elements || []
+// ─── BlockPreview ──────────────────────────────────────────────────────────────
 
+export function BlockPreview({ block, isSelected, onPatchProps }: { block: any; isSelected: boolean; onPatchProps?: (patch: Record<string, unknown>) => void }) {
+  const p = block.props || {}
   const animationClass = p.animation && p.animation !== 'none' ? `animate-${p.animation}` : ''
-  const wrap: CSSProperties = { 
-    fontFamily: font, background: bg, color: text, 
-    paddingLeft: px, paddingRight: px, paddingTop: py, paddingBottom: py, 
-    position: 'relative',
-    outline: isSelected ? '2px solid #6366f1' : 'none',
-    outlineOffset: -2,
-    transition: 'outline 0.15s'
+  return (
+    <div className={animationClass} style={{ width: '100%' }}>
+      <BlockPreviewContent block={block} isSelected={isSelected} onPatchProps={onPatchProps} />
+    </div>
+  )
+}
+
+// ─── Default elements generator (minimal version for clientAdmin) ───
+
+export function getDefaultElements(type: string, accent: string): FreeElement[] {
+  return []
+}
+
+function BlockPreviewContent({ block, isSelected, onPatchProps }: { block: any; isSelected: boolean; onPatchProps?: (patch: Record<string, unknown>) => void }) {
+  const { componentType: type, props: p = {} } = block
+  const bg     = p.bgColor     || '#ffffff'
+  const text   = p.textColor   || '#1e293b'
+  const accent = p.accentColor || '#6366f1'
+  const font   = p.fontFamily  || 'Inter'
+  const px     = p.paddingX    ?? 48
+  const py     = p.paddingY    ?? 60
+  const border = isSelected ? '2px solid #6366f1' : '2px solid transparent'
+
+  const rawElements: FreeElement[] = p._elements || []
+  const elements: FreeElement[] = rawElements
+
+  const wrapStyle: CSSProperties = {
+    fontFamily: font, background: bg, color: text,
+    paddingLeft: px, paddingRight: px, paddingTop: py, paddingBottom: py,
+    border, transition: 'border 0.15s',
   }
-  const freeEls = <FreeEls elements={elements} accent={accent} text={text} />
+
+  const handlePatchElements = useCallback((newEls: FreeElement[]) => {
+    if (onPatchProps) onPatchProps({ _elements: newEls })
+  }, [onPatchProps])
+
+  const freeEls = <FreeElementsRenderer elements={elements} accentColor={accent} textColor={text} onPatchElements={onPatchProps ? handlePatchElements : undefined} />
+  
+  const freeParts: Record<string, ReactNode> = {}
+  elements.forEach((el) => {
+    freeParts[`free_${el.id}`] = renderFreeElement(el, accent, text)
+  })
+
+  if (elements.length > 0 && type !== 'header' && (!p.title && !p.subtitle && !p.imageUrl && !p.hasImage)) {
+    return (
+      <div style={{ ...wrapStyle, display: 'flex', flexDirection: 'column', alignItems: (p.align === 'center' ? 'center' : p.align === 'right' ? 'flex-end' : 'flex-start'), gap: 4 }}>
+        {freeEls}
+      </div>
+    )
+  }
+
+  function tryBlockCanvas(
+    blockType: string,
+    wrap: CSSProperties,
+    zoneParts: Record<string, ReactNode>,
+    after?: ReactNode,
+  ): ReactNode | null {
+    if (!p.blockCanvas || !isBuilderBlockCanvasType(blockType)) return null
+    const minH =
+      typeof p.blockCanvasHeight === 'number' && p.blockCanvasHeight > 0
+        ? p.blockCanvasHeight
+        : defaultBlockCanvasHeight(blockType)
+    return (
+      <>
+        <div style={{ width: '100%' }}>
+          <ZoneCanvasPreview
+            componentType={blockType}
+            p={p}
+            wrapStyle={wrap}
+            isSelected={!!isSelected}
+            onPatch={onPatchProps}
+            minH={minH}
+            parts={{ ...zoneParts, ...freeParts }}
+          />
+        </div>
+        {after}
+      </>
+    )
+  }
 
   if (type === 'header') {
     const navLinks = Array.isArray(p.links) ? p.links : []
-    const titlePx = pxFromSizeProp(p.fontSize, 24)
-    const navPx = pxFromSizeProp(p.navFontSize, 15)
-    const headerWrap: CSSProperties = { ...wrap, paddingTop: p.paddingY ?? 20, paddingBottom: p.paddingY ?? 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: p.borderBottom ? `1px solid ${text}15` : 'none' }
-    const navEls = navLinks.map((link: any, i: number) => (
-      <a key={i} href={link.href} style={{ fontSize: navPx, fontWeight: 600, opacity: 0.8, color: 'inherit', textDecoration: 'none', transition: 'opacity 0.2s' }}>
-        {link.label || link.href}
-      </a>
-    ))
-    const titleBlock = <div style={{ fontWeight: 900, fontSize: titlePx, letterSpacing: '-0.03em' }}>{p.title || p.brandName || ''}</div>
-    const ctaBlock = p.ctaText ? <a href={p.ctaUrl} style={{ padding: '10px 24px', background: accent, color: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: 'none', boxShadow: `0 4px 12px ${accent}40` }}>{p.ctaText}</a> : null
-    
+    const titlePx = pxFromSizeProp(p.fontSize, 20)
+    const navPx = pxFromSizeProp(p.navFontSize, 14)
+    const headerWrap: CSSProperties = {
+      ...wrapStyle,
+      paddingTop: p.paddingY ?? 18,
+      paddingBottom: p.paddingY ?? 18,
+    }
+    if (p.headerCanvas) {
+      const navEls = navLinks.length === 0 ? (
+        <span style={{ fontSize: 11, color: text, opacity: 0.35, fontStyle: 'italic' }}>Цэс хоосон</span>
+      ) : (
+        navLinks.map((link: { label?: string; href?: string }, i: number) => (
+          <span
+            key={i}
+            style={{
+              fontSize: navPx,
+              fontWeight: 600,
+              color: text,
+              opacity: 0.88,
+              paddingBottom: 2,
+              borderBottom: `2px solid ${accent}55`,
+            }}
+          >
+            {String(link.label || link.href || 'Link')}
+          </span>
+        ))
+      )
+      const titleBlock = (
+        <div
+          style={{
+            fontWeight: 800,
+            fontSize: titlePx,
+            color: text,
+            letterSpacing: '-0.02em',
+            maxWidth: 280,
+          }}
+        >
+          {String(p.title || p.brandName || '')}
+        </div>
+      )
+      const ctaSep = p.ctaWithNav === false
+      const ctaBlock = p.button || p.ctaText ? <div style={{ padding: '8px 20px', background: accent, borderRadius: p.btnRadius ?? 8, color: '#fff', fontSize: 13, fontWeight: 700 }}>{p.ctaText || 'Action'}</div> : null
+      return (
+        <div style={{ width: '100%' }}>
+          <HeaderCanvasPreview
+            p={p}
+            wrapBase={headerWrap}
+            borderBottom={p.borderBottom ? `1px solid ${p.borderColor || '#e2e8f0'}` : 'none'}
+            isSelected={isSelected}
+            onPatch={onPatchProps}
+            titleBlock={titleBlock}
+            navEls={navEls}
+            ctaBlock={ctaBlock}
+            ctaSep={ctaSep}
+            hasCta={!!(p.button || p.ctaText)}
+            minH={typeof p.headerCanvasHeight === 'number' && p.headerCanvasHeight > 0 ? p.headerCanvasHeight : 88}
+            freeParts={freeParts}
+          />
+        </div>
+      )
+    }
+    const jMap: Record<string, string> = {
+      start: 'flex-start', center: 'center', end: 'flex-end',
+      between: 'space-between', around: 'space-around', evenly: 'space-evenly',
+    }
+    const iMap: Record<string, string> = {
+      start: 'flex-start', center: 'center', end: 'flex-end', baseline: 'baseline', stretch: 'stretch',
+    }
+    const rowJust = jMap[String(p.rowJustify || 'between')] || 'space-between'
+    const rowIt = iMap[String(p.rowItems || 'center')] || 'center'
+    const isStack = p.headerLayout === 'stack'
+    const ctaSep = p.ctaWithNav === false
+    const brStack =
+      p.stackBrandAlign === 'end' ? 'flex-end' : p.stackBrandAlign === 'start' ? 'flex-start' : 'center'
+    const navStack = jMap[String(p.stackNavJustify || 'center')] || 'center'
+    const gap = typeof p.contentGap === 'number' && p.contentGap > 0 ? p.contentGap : 8
+    const navEls = navLinks.length === 0 ? (
+      <span style={{ fontSize: 11, color: text, opacity: 0.35, fontStyle: 'italic' }}>Цэс хоосон</span>
+    ) : (
+      navLinks.map((link: { label?: string; href?: string }, i: number) => (
+        <span
+          key={i}
+          style={{
+            fontSize: navPx,
+            fontWeight: 600,
+            color: text,
+            opacity: 0.88,
+            paddingBottom: 2,
+            borderBottom: `2px solid ${accent}55`,
+          }}
+        >
+          {String(link.label || link.href || 'Link')}
+        </span>
+      ))
+    )
+    const ctaBlock = <div style={{ padding: '8px 20px', background: accent, borderRadius: p.btnRadius ?? 8, color: '#fff', fontSize: 13, fontWeight: 700 }}>{p.ctaText || 'Action'}</div>
+    const titleBlock = (
+      <div
+        style={{
+          fontWeight: 800,
+          fontSize: titlePx,
+          color: text,
+          letterSpacing: '-0.02em',
+          maxWidth: ctaSep ? '38%' : '42%',
+        }}
+      >
+        {String(p.title || p.brandName || '')}
+      </div>
+    )
+    if (isStack) {
+      return (
+        <div
+          style={{
+            ...wrapStyle,
+            paddingTop: p.paddingY ?? 18,
+            paddingBottom: p.paddingY ?? 18,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            borderBottom: p.borderBottom ? `1px solid ${p.borderColor || '#e2e8f0'}` : 'none',
+            gap: Math.max(gap, 6),
+          }}
+        >
+          <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: brStack, width: '100%' }}>{titleBlock}</div>
+            <div style={{ width: 48, height: 28, borderRadius: 8, border: `1px solid ${text}30`, flexShrink: 0 }} />
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: p.rowReverse ? 'row-reverse' as const : 'row' as const,
+              flexWrap: 'wrap' as const,
+              justifyContent: navStack,
+              alignItems: rowIt as 'center',
+              gap,
+              minHeight: 32,
+            }}
+          >
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', flex: ctaSep ? 1 : undefined }}>
+              {navEls}
+              {!ctaSep && ctaBlock}
+            </div>
+            {ctaSep && ctaBlock}
+          </div>
+          {elements.length > 0 && <div style={{ width: '100%' }}>{freeEls}</div>}
+        </div>
+      )
+    }
     return (
-      <header style={headerWrap} className={animationClass}>
+      <div
+        style={{
+          ...wrapStyle,
+          paddingTop: p.paddingY ?? 18,
+          paddingBottom: p.paddingY ?? 18,
+          display: 'flex',
+          flexDirection: p.rowReverse ? 'row-reverse' as const : 'row' as const,
+          justifyContent: rowJust as 'space-between',
+          alignItems: rowIt as 'center',
+          borderBottom: p.borderBottom ? `1px solid ${p.borderColor || '#e2e8f0'}` : 'none',
+          flexWrap: 'wrap' as const,
+          gap,
+        }}
+      >
         {titleBlock}
-        <nav style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' as const, alignItems: 'center', justifyContent: 'center', flex: ctaSep ? 1 : undefined, minWidth: 0 }}>
           {navEls}
-          {ctaBlock}
-        </nav>
-      </header>
+          {!ctaSep && ctaBlock}
+        </div>
+        {ctaSep && ctaBlock}
+        {elements.length > 0 && <div style={{ width: '100%' }}>{freeEls}</div>}
+      </div>
     )
   }
 
   if (type === 'hero') {
     const align = p.align || 'center'
     const flexAlign = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'
-    const isCenter = align === 'center'
-    
-    const mediaEl = p.imageUrl ? (
-      <div style={{ marginTop: 48, width: '100%', display: 'flex', justifyContent: flexAlign }}>
-        <img src={p.imageUrl} style={{ maxWidth: '90%', borderRadius: 32, boxShadow: '0 30px 60px -12px rgba(0,0,0,0.25)' }} />
+    const displayImg = p.imageUrl || (p.src ? resolveDisplayImageUrl(p.src) : '')
+    const mediaEl = (p.hasImage || displayImg) ? (
+      <div style={{ width: '100%', maxWidth: 420, height: displayImg ? 'auto' : 160, background: displayImg ? 'transparent' : text, opacity: displayImg ? 1 : 0.06, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {displayImg ? <img src={displayImg} style={{ width: '100%', borderRadius: 12 }} /> : <ImageIcon style={{ color: text, opacity: 0.25, width: 36, height: 36 }} />}
       </div>
-    ) : null
+    ) : (
+      <div style={{ width: 120, height: 36, borderRadius: 8, border: `1px dashed ${text}22` }} />
+    )
 
-    const titleEl = p.title ? (
-      <h1 style={{ 
-        fontSize: p.titleSize || 64, 
-        fontWeight: 900, 
-        lineHeight: 1.05, 
-        marginBottom: 28, 
-        letterSpacing: '-0.04em',
-        maxWidth: 900,
-        marginLeft: isCenter ? 'auto' : 0,
-        marginRight: isCenter ? 'auto' : 0
-      }}>
-        {p.title}
-      </h1>
-    ) : null
+    const zoneParts: Record<string, ReactNode> = {
+      media: mediaEl,
+      title: <div style={{ fontSize: p.titleSize || 48, fontWeight: p.titleWeight || '800', color: text, maxWidth: 600 }}>{p.title || 'Гарчиг энд байна'}</div>,
+      subtitle: <div style={{ fontSize: p.subtitleSize || 18, color: text, opacity: 0.7, maxWidth: 500 }}>{p.subtitle || 'Дэд гарчиг энд бичигдэнэ'}</div>,
+      cta: <div style={{ width: p.btnPaddingX ? p.btnPaddingX * 4 : 140, height: p.btnPaddingY ? p.btnPaddingY * 3 : 46, background: p.btnBg || accent, borderRadius: p.btnRadius ?? 10, opacity: 0.9, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 700 }}>{p.primaryBtnText || p.btnText || ''}</div>,
+    }
 
-    const subtitleEl = p.subtitle ? (
-      <p style={{ 
-        fontSize: 20, 
-        opacity: 0.7, 
-        marginBottom: 44, 
-        maxWidth: 640, 
-        lineHeight: 1.6,
-        marginLeft: isCenter ? 'auto' : 0,
-        marginRight: isCenter ? 'auto' : 0
-      }}>
-        {p.subtitle}
-      </p>
-    ) : null
-
-    const ctaEl = (p.primaryBtnText || p.secondaryBtnText) ? (
-      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: flexAlign }}>
-        {p.primaryBtnText && <a href={p.primaryBtnUrl} style={{ background: accent, color: '#fff', padding: '18px 42px', borderRadius: 16, fontWeight: 700, textDecoration: 'none', boxShadow: `0 12px 24px ${accent}40`, transition: 'transform 0.2s' }}>{p.primaryBtnText}</a>}
-        {p.secondaryBtnText && <a href={p.secondaryBtnUrl} style={{ border: `2px solid ${text}30`, color: 'inherit', padding: '18px 42px', borderRadius: 16, fontWeight: 700, textDecoration: 'none', background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(8px)' }}>{p.secondaryBtnText}</a>}
-      </div>
-    ) : null
+    const canvas = tryBlockCanvas('hero', wrapStyle, zoneParts)
+    if (canvas) return canvas
 
     return (
-      <section style={{ ...wrap, display: 'flex', flexDirection: 'column', alignItems: flexAlign, textAlign: align as any }} className={animationClass}>
-        {titleEl}
-        {subtitleEl}
-        {ctaEl}
+      <div style={{ ...wrapStyle, display: 'flex', flexDirection: 'column', alignItems: flexAlign, textAlign: align as any, gap: 20 }}>
+        {zoneParts.title}
+        {zoneParts.subtitle}
         {mediaEl}
+        {(p.primaryBtnText || p.btnText) && zoneParts.cta}
         {freeEls}
-      </section>
+      </div>
     )
   }
 
   if (type === 'about') {
-    const dir = p.align === 'right' ? 'row-reverse' : 'row'
-    const imageEl = p.imageUrl ? (
-      <div style={{ flex: 1, position: 'relative' }}>
-        <img src={p.imageUrl} style={{ width: '100%', height: 'auto', borderRadius: 28, boxShadow: '0 20px 40px -10px rgba(0,0,0,0.15)' }} />
-      </div>
-    ) : null
+    const align = p.align || 'left'
+    const flexAlign = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'
+    const displayImg = p.imageUrl || (p.src ? resolveDisplayImageUrl(p.src) : '')
 
-    return (
-      <section style={wrap} className={animationClass}>
-        <div style={{ display: 'flex', gap: 72, alignItems: 'center', flexDirection: dir as any }}>
-          {imageEl}
-          <div style={{ flex: 1.2 }}>
-            {p.title && <h2 style={{ fontSize: 44, fontWeight: 900, marginBottom: 24, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{p.title}</h2>}
-            {p.description && <p style={{ fontSize: 19, opacity: 0.7, lineHeight: 1.7, marginBottom: 40 }}>{p.description}</p>}
-            {p.btnText && <a href={p.btnUrl} style={{ display: 'inline-block', background: accent, color: '#fff', padding: '14px 32px', borderRadius: 14, fontWeight: 700, textDecoration: 'none', boxShadow: `0 8px 16px ${accent}30` }}>{p.btnText}</a>}
-          </div>
+    const zoneParts: Record<string, ReactNode> = {
+      image: (
+        <div style={{ width: '100%', maxWidth: 480, height: displayImg ? 'auto' : 240, background: displayImg ? 'transparent' : text, opacity: displayImg ? 1 : 0.06, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {displayImg ? <img src={displayImg} style={{ width: '100%', borderRadius: 16 }} /> : <ImageIcon style={{ color: text, opacity: 0.25, width: 48, height: 48 }} />}
         </div>
+      ),
+      content: (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, alignItems: flexAlign }}>
+          <div style={{ fontSize: p.titleSize || 34, fontWeight: '700', color: text }}>{p.title || 'Бидний тухай'}</div>
+          {p.description ? <div style={{ fontSize: 16, opacity: 0.8, lineHeight: 1.6 }}>{p.description}</div> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+              <SkeletonLine w="100%" color={text} />
+              <SkeletonLine w="95%" color={text} />
+              <SkeletonLine w="90%" color={text} />
+              <SkeletonLine w="40%" color={text} />
+            </div>
+          )}
+          {(p.btnText || p.primaryBtnText) && <div style={{ width: 120, height: 40, background: accent, borderRadius: p.btnRadius ?? 8, opacity: 0.8, marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 600 }}>{p.btnText || p.primaryBtnText}</div>}
+        </div>
+      )
+    }
+
+    const canvas = tryBlockCanvas('about', wrapStyle, zoneParts)
+    if (canvas) return canvas
+
+    const isLeft = align === 'left'
+    return (
+      <div style={{ ...wrapStyle, display: 'flex', flexDirection: isLeft ? 'row' : 'row-reverse', alignItems: 'center', gap: 40, flexWrap: 'wrap' }}>
+        {zoneParts.image}
+        {zoneParts.content}
         {freeEls}
-      </section>
+      </div>
     )
   }
 
-  if (['services', 'features', 'products', 'pricing'].includes(type)) {
-    const items = Array.isArray(p.items) ? p.items : []
+  if (['services', 'features', 'products', 'pricing', 'clients'].includes(type)) {
     const cols = p.columns || 3
-    const titleEl = p.title ? <h2 style={{ fontSize: 48, fontWeight: 900, marginBottom: 20, letterSpacing: '-0.03em' }}>{p.title}</h2> : null
-    const subtitleEl = p.subtitle ? <p style={{ fontSize: 20, opacity: 0.6, marginBottom: 64, maxWidth: 800, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>{p.subtitle}</p> : null
+    const cardBg = p.cardBg || (bg === '#ffffff' ? '#f8fafc' : `${bg}15`)
+    const items = Array.isArray(p.items) ? p.items : []
+    
+    const zoneParts: Record<string, ReactNode> = {
+      title: <div style={{ fontSize: p.titleSize || 34, fontWeight: '700', color: text, marginBottom: 32 }}>{p.title || (type === 'services' ? 'Үйлчилгээ' : type === 'features' ? 'Онцлог' : type === 'products' ? 'Бүтээгдэхүүн' : type === 'pricing' ? 'Үнийн санал' : 'Харилцагчид')}</div>,
+      grid: (
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 20, width: '100%' }}>
+          {items.length > 0 ? items.map((item, i) => (
+             <div key={i} style={{ background: cardBg, borderRadius: p.cardRadius ?? 16, padding: 24, boxShadow: p.cardShadow === 'none' ? 'none' : '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {item.imageUrl && <img src={item.imageUrl} style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover' }} />}
+                <div style={{ fontWeight: 700, fontSize: 18 }}>{item.title}</div>
+                <div style={{ fontSize: 14, opacity: 0.7 }}>{item.description}</div>
+                {item.price && <div style={{ fontWeight: 800, color: accent }}>{item.price}</div>}
+             </div>
+          )) : [1, 2, 3, 4, 5, 6].slice(0, Math.max(cols, 3)).map(i => (
+            <div key={i} style={{ background: cardBg, borderRadius: p.cardRadius ?? 16, padding: 24, boxShadow: p.cardShadow === 'none' ? 'none' : '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: accent, opacity: 0.1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Package style={{ width: 24, height: 24, color: accent }} />
+              </div>
+              <SkeletonLine w="70%" color={text} h={16} />
+              <SkeletonLine w="100%" color={text} h={10} />
+              <SkeletonLine w="90%" color={text} h={10} />
+            </div>
+          ))}
+        </div>
+      )
+    }
 
-    const gridItems = items.map((item: any, i: number) => (
-      <div key={i} style={{ padding: 40, borderRadius: 28, border: `1px solid ${text}12`, background: 'rgba(255,255,255,0.5)', backdropFilter: 'blur(12px)', transition: 'all 0.3s ease', textAlign: 'left', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-        {item.imageUrl && <img src={item.imageUrl} style={{ width: 64, height: 64, borderRadius: 18, marginBottom: 28, objectFit: 'cover', boxShadow: '0 8px 16px rgba(0,0,0,0.05)' }} />}
-        <h3 style={{ fontWeight: 800, fontSize: 24, marginBottom: 14, letterSpacing: '-0.01em' }}>{item.title}</h3>
-        <p style={{ fontSize: 17, opacity: 0.6, lineHeight: 1.6 }}>{item.description}</p>
-        {item.price && <div style={{ marginTop: 28, fontSize: 28, fontWeight: 900, color: accent, letterSpacing: '-0.02em' }}>{item.price}</div>}
-      </div>
-    ))
+    const canvas = tryBlockCanvas(type, wrapStyle, zoneParts)
+    if (canvas) return canvas
 
     return (
-      <section style={{ ...wrap, textAlign: 'center' }} className={animationClass}>
-        {titleEl}
-        {subtitleEl}
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 32 }}>
-          {gridItems}
-        </div>
+      <div style={{ ...wrapStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+        {zoneParts.title}
+        {zoneParts.grid}
         {freeEls}
-      </section>
+      </div>
+    )
+  }
+
+  if (type === 'promo') {
+    return (
+      <div style={{ ...wrapStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 20 }}>
+        <div style={{ fontSize: p.titleSize || 36, fontWeight: '800', color: text }}>{p.title || 'Урамшуулал ба Онцлох'}</div>
+        {p.subtitle ? <div style={{ fontSize: 18, opacity: 0.8 }}>{p.subtitle}</div> : <SkeletonLine w="60%" color={text} />}
+        <div style={{ padding: '12px 32px', background: p.btnBg || accent, borderRadius: p.btnRadius ?? 12, color: '#fff', fontWeight: 700, marginTop: 10 }}>{p.btnText || 'Дэлгэрэнгүй'}</div>
+        {freeEls}
+      </div>
+    )
+  }
+
+  if (type === 'contact') {
+    const zoneParts: Record<string, ReactNode> = {
+      title: <div style={{ fontSize: p.titleSize || 34, fontWeight: '700', color: text }}>{p.title || 'Холбоо барих'}</div>,
+      form: (
+        <div style={{ width: '100%', maxWidth: 500, background: p.cardBg || '#ffffff', borderRadius: p.cardRadius ?? 16, padding: 32, boxShadow: '0 10px 25px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ height: 42, borderRadius: 8, background: text, opacity: 0.05 }} />
+          <div style={{ height: 42, borderRadius: 8, background: text, opacity: 0.05 }} />
+          <div style={{ height: 100, borderRadius: 8, background: text, opacity: 0.05 }} />
+          <div style={{ height: 46, borderRadius: 8, background: accent, opacity: 0.9 }} />
+        </div>
+      )
+    }
+
+    const canvas = tryBlockCanvas('contact', wrapStyle, zoneParts)
+    if (canvas) return canvas
+
+    return (
+      <div style={{ ...wrapStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 32 }}>
+        {zoneParts.title}
+        {zoneParts.form}
+        {freeEls}
+      </div>
     )
   }
 
   if (type === 'footer') {
     return (
-      <footer style={{ ...wrap, borderTop: `1px solid ${text}10`, paddingTop: 60, paddingBottom: 60 }} className={animationClass}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 32 }}>
-          <div>
-            <div style={{ fontWeight: 900, fontSize: 24, marginBottom: 8 }}>{p.brandName || ''}</div>
-            <p style={{ opacity: 0.5, fontSize: 14 }}>{p.copyright || ''}</p>
-          </div>
-          <div style={{ display: 'flex', gap: 24 }}>
-            {/* Optional footer links could go here */}
-          </div>
+      <div style={{ ...wrapStyle, borderTop: `1px solid ${text}15`, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16 }}>
+        <div style={{ fontWeight: '800', fontSize: 20, color: text }}>{p.title || p.brandName || 'Брэнд нэр'}</div>
+        <div style={{ display: 'flex', gap: 20 }}>
+          <SkeletonLine w={60} color={text} />
+          <SkeletonLine w={60} color={text} />
+          <SkeletonLine w={60} color={text} />
+        </div>
+        <div style={{ fontSize: 12, color: text, opacity: 0.5, marginTop: 20 }}>
+          © {new Date().getFullYear()} {p.copyright || 'Бүх эрх хуулиар хамгаалагдсан.'}
         </div>
         {freeEls}
-      </footer>
+      </div>
     )
   }
 
-
   return (
-    <div style={wrap} className={animationClass}>
-      {p.title && <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>{p.title}</h2>}
-      {p.subtitle && <p style={{ opacity: 0.7, lineHeight: 1.6 }}>{p.subtitle}</p>}
+    <div style={{ 
+      ...wrapStyle, 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: (p.align === 'center' ? 'center' : p.align === 'right' ? 'flex-end' : 'flex-start'),
+      minHeight: 120 
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 'bold', opacity: 0.2, marginBottom: 8, textTransform: 'uppercase' }}>{type} preview</div>
+      {p.title ? <div style={{ fontSize: 24, fontWeight: 700 }}>{p.title}</div> : <SkeletonLine w="80%" color={text} mb={8} />}
+      {p.subtitle ? <div style={{ fontSize: 16, opacity: 0.7 }}>{p.subtitle}</div> : <SkeletonLine w="60%" color={text} mb={16} />}
       {freeEls}
     </div>
   )
