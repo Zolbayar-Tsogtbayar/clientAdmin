@@ -48,41 +48,54 @@ function wrapLink(el: FreeElement, child: React.ReactNode) {
 export function renderFreeElement(el: FreeElement, accentColor: string, textColor: string) {
   switch (el.type) {
     case 'text':
-      const textH = el.height || (el.size ? el.size * 0.7 : 14)
-      return wrapLink(el, 
-        <div style={{
-          width: el.width || '80%',
-          height: textH,
-          background: el.color || textColor,
-          opacity: 0.2,
-          borderRadius: 4,
-          margin: '4px 0'
-        }} />
+      return wrapLink(el,
+        <p style={{
+          fontSize: el.size || 16,
+          color: el.color || textColor,
+          margin: '4px 0',
+          lineHeight: 1.6,
+          textAlign: (el.align as any) || 'left',
+        }}>
+          {el.value || el.label || ''}
+        </p>
       )
 
     case 'button':
       return wrapLink(el,
-        <div style={{
-          width: el.width || 140,
-          height: el.height || 46,
+        <span style={{
+          display: 'inline-block',
+          padding: '10px 24px',
           background: el.bg || accentColor,
+          color: '#fff',
           borderRadius: el.radius ?? 10,
-          opacity: 0.9,
-          display: 'inline-block'
-        }} />
+          fontWeight: 700,
+          fontSize: el.size || 14,
+          cursor: 'pointer',
+          textDecoration: 'none',
+          lineHeight: 1,
+        }}>
+          {el.label || el.value || 'Button'}
+        </span>
       )
 
     case 'input':
       return (
-        <div style={{
-          width: el.width || 200,
-          height: el.height || 46,
-          background: el.bg || textColor,
-          opacity: 0.08,
-          borderRadius: el.radius ?? 8,
-          border: `1px solid ${textColor}22`,
-          display: 'inline-block'
-        }} />
+        <input
+          type="text"
+          placeholder={el.placeholder || el.label || ''}
+          style={{
+            width: el.width || '100%',
+            height: el.height || 46,
+            padding: '0 14px',
+            borderRadius: el.radius ?? 8,
+            border: `1px solid ${textColor}33`,
+            fontSize: el.size || 14,
+            background: el.bg || '#fff',
+            color: textColor,
+            boxSizing: 'border-box',
+          }}
+          disabled
+        />
       )
 
     case 'image': {
@@ -95,42 +108,31 @@ export function renderFreeElement(el: FreeElement, accentColor: string, textColo
             referrerPolicy="no-referrer"
             style={{
               width: (el.width as string | number | undefined) || '100%',
-              maxHeight: el.height || 160,
+              maxWidth: '100%',
+              maxHeight: el.height || 320,
               height: 'auto',
-              objectFit: 'contain',
-              borderRadius: 12,
+              objectFit: 'cover',
+              borderRadius: el.radius ?? 12,
               display: 'block',
             }}
           />,
         )
       }
-      return wrapLink(el,
-        <div style={{
-          width: el.width || '100%',
-          height: el.height || 160,
-          background: textColor,
-          opacity: 0.06,
-          borderRadius: 12,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <ImageIcon style={{ width: 36, height: 36, opacity: 0.25, color: textColor }} />
-        </div>
-      )
+      return <div style={{ width: 120, height: 40, border: `1px dashed ${textColor}44`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>No Image</div>
     }
 
     case 'card':
       return wrapLink(el,
         <div style={{
           width: el.width || '100%',
-          height: el.height || 120,
+          minHeight: el.height || 120,
           background: el.bg || '#ffffff',
           borderRadius: el.radius ?? 12,
           border: `1px solid ${textColor}15`,
-          boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          opacity: 0.8,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+          padding: 24,
         }}>
-          <div style={{ width: '40%', height: 12, background: textColor, opacity: 0.15, borderRadius: 4 }} />
+          {el.value && <p style={{ color: textColor, opacity: 0.8, fontSize: 15 }}>{el.value}</p>}
         </div>
       )
 
@@ -138,21 +140,22 @@ export function renderFreeElement(el: FreeElement, accentColor: string, textColo
       return (
         <div style={{
           width: el.width || '100%',
-          height: el.height || 80,
-          background: el.bg || textColor,
-          opacity: 0.03,
+          minHeight: el.height || 80,
+          background: el.bg || 'transparent',
           borderRadius: 8,
-          border: `1px dashed ${textColor}33`,
-        }} />
+        }}>
+          {el.value && <p style={{ color: textColor, opacity: 0.8 }}>{el.value}</p>}
+        </div>
       )
 
     case 'divider':
       return (
-        <div style={{
+        <hr style={{
           width: el.width || '100%',
           height: el.height || 1,
           background: el.color || textColor,
           opacity: 0.15,
+          border: 'none',
           borderRadius: 99,
           margin: '12px 0',
         }} />
@@ -160,25 +163,25 @@ export function renderFreeElement(el: FreeElement, accentColor: string, textColo
 
     case 'badge':
       return wrapLink(el,
-        <div style={{ display: 'flex' }}>
-          <div style={{
-            width: el.width || 60,
-            height: 20,
-            background: el.bg || accentColor,
-            borderRadius: el.radius ?? 999,
-            opacity: 0.8,
-            display: 'inline-block',
-          }} />
-        </div>
+        <span style={{
+          display: 'inline-block',
+          padding: '3px 12px',
+          background: el.bg || accentColor,
+          color: '#fff',
+          borderRadius: el.radius ?? 999,
+          fontSize: el.size || 12,
+          fontWeight: 600,
+          opacity: 0.9,
+        }}>
+          {el.label || el.value || ''}
+        </span>
       )
 
-    case 'menu':
+    case 'menu': {
       const navLinks = Array.isArray(el.links) ? el.links : []
-      if (navLinks.length === 0) {
-        return <span style={{ fontSize: 11, color: textColor, opacity: 0.35, fontStyle: 'italic' }}>Цэс хоосон</span>
-      }
+      if (navLinks.length === 0) return null
       return (
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', justifyContent: el.align as any || 'center' }}>
+        <nav style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center', justifyContent: (el.align as any) || 'center' }}>
           {navLinks.map((link: any, i: number) => (
             <div
               key={i}
@@ -191,8 +194,9 @@ export function renderFreeElement(el: FreeElement, accentColor: string, textColo
               }}
             />
           ))}
-        </div>
+        </nav>
       )
+    }
 
     default:
       return null
@@ -574,14 +578,14 @@ function BlockPreviewContent({ block, isSelected, onPatchProps }: { block: any; 
       title: <div style={{ fontSize: p.titleSize || 34, fontWeight: '700', color: text, marginBottom: 32 }}>{p.title || (type === 'services' ? 'Үйлчилгээ' : type === 'features' ? 'Онцлог' : type === 'products' ? 'Бүтээгдэхүүн' : type === 'pricing' ? 'Үнийн санал' : 'Харилцагчид')}</div>,
       grid: (
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 20, width: '100%' }}>
-          {items.length > 0 ? items.map((item, i) => (
+          {items.length > 0 ? items.map((item: any, i: number) => (
              <div key={i} style={{ background: cardBg, borderRadius: p.cardRadius ?? 16, padding: 24, boxShadow: p.cardShadow === 'none' ? 'none' : '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {item.imageUrl && <img src={item.imageUrl} style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover' }} />}
                 <div style={{ fontWeight: 700, fontSize: 18 }}>{item.title}</div>
                 <div style={{ fontSize: 14, opacity: 0.7 }}>{item.description}</div>
                 {item.price && <div style={{ fontWeight: 800, color: accent }}>{item.price}</div>}
              </div>
-          )) : [1, 2, 3, 4, 5, 6].slice(0, Math.max(cols, 3)).map(i => (
+          )) : [1, 2, 3, 4, 5, 6].slice(0, Math.max(cols, 3)).map((i: number) => (
             <div key={i} style={{ background: cardBg, borderRadius: p.cardRadius ?? 16, padding: 24, boxShadow: p.cardShadow === 'none' ? 'none' : '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ width: 48, height: 48, borderRadius: 12, background: accent, opacity: 0.1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Package style={{ width: 24, height: 24, color: accent }} />
@@ -603,6 +607,25 @@ function BlockPreviewContent({ block, isSelected, onPatchProps }: { block: any; 
         {zoneParts.title}
         {zoneParts.grid}
         {freeEls}
+      </div>
+    )
+  }
+
+  if (type === 'slider') {
+    const items = Array.isArray(p.items) ? p.items : []
+    return (
+      <div style={{ ...wrapStyle, padding: 0, position: 'relative', height: 320, background: '#000', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {items.length > 0 ? (
+          <>
+            <img src={items[0].imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }} />
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 20, color: '#fff', textAlign: 'center' }}>
+               <h2 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>{items[0].title}</h2>
+               <p style={{ fontSize: 12, opacity: 0.8, marginTop: 8 }}>{items[0].description}</p>
+            </div>
+          </>
+        ) : (
+          <div style={{ color: '#fff', fontSize: 12 }}>Slider (No Items)</div>
+        )}
       </div>
     )
   }

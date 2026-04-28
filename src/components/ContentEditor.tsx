@@ -62,6 +62,9 @@ const CONTENT_FIELDS: Record<string, FieldDef[]> = {
     { key: 'title', label: 'Хэсгийн гарчиг', type: 'text', placeholder: 'Бидний харилцагчид' },
     { key: 'items', label: 'Харилцагчдын жагсаалт', type: 'items' },
   ],
+  slider: [
+    { key: 'items', label: 'Слайд жагсаалт', type: 'items' },
+  ],
   promo: [
     { key: 'title',   label: 'Гарчиг',         type: 'text',     placeholder: 'Промо мессеж' },
     { key: 'subtitle',label: 'Дэд гарчиг',     type: 'textarea', placeholder: 'Нэмэлт тайлбар...' },
@@ -76,9 +79,19 @@ const CONTENT_FIELDS: Record<string, FieldDef[]> = {
   ],
   footer: [
     { key: 'brandName',  label: 'Брэнд / Лого нэр', type: 'text',     placeholder: 'MyBrand' },
+    { key: 'title',      label: 'Гарчиг',          type: 'text',     placeholder: 'Footer Title' },
+    { key: 'description',label: 'Тайлбар',          type: 'textarea', placeholder: 'Footer description...' },
     { key: 'copyright',  label: 'Copyright текст',   type: 'text',     placeholder: '© 2025 MyBrand. All rights reserved.' },
+    { key: 'items',      label: 'Холбоосууд / Картууд', type: 'items' },
   ],
 }
+
+const LAYOUT_FIELDS: FieldDef[] = [
+  { key: 'align',       label: 'Тэгшитгэл', type: 'text', placeholder: 'left / center / right' },
+  { key: 'bgColor',     label: 'Арын өнгө',  type: 'text', placeholder: '#ffffff' },
+  { key: 'textColor',   label: 'Фонт өнгө',  type: 'text', placeholder: '#1e293b' },
+  { key: 'accentColor', label: 'Акцент өнгө', type: 'text', placeholder: '#6366f1' },
+]
 
 const FIELD_ICONS: Record<FieldType, React.ReactNode> = {
   text:     <Type className="w-3 h-3" />,
@@ -408,8 +421,44 @@ export function ContentEditor({ block, onSave, isSaving }: Props) {
                           }}
                           placeholder="Тайлбар..."
                           rows={2}
-                          className="w-full resize-none pt-1 focus:outline-none placeholder:text-slate-300"
+                          className="w-full resize-none pt-1 focus:outline-none placeholder:text-slate-300 text-[11px]"
                         />
+                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-50">
+                          <input
+                            value={item.imageUrl || ''}
+                            onChange={e => {
+                              const arr = [...(itemArrays[f.key] || [])]; arr[idx] = {...arr[idx], imageUrl: e.target.value}; setItemArray(f.key, arr)
+                            }}
+                            placeholder="Зургийн URL"
+                            className="w-full text-[10px] border border-slate-100 rounded px-1.5 py-1 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          />
+                          <input
+                            value={item.price || ''}
+                            onChange={e => {
+                              const arr = [...(itemArrays[f.key] || [])]; arr[idx] = {...arr[idx], price: e.target.value}; setItemArray(f.key, arr)
+                            }}
+                            placeholder="Үнэ"
+                            className="w-full text-[10px] border border-slate-100 rounded px-1.5 py-1 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-1">
+                          <input
+                            value={item.btnText || ''}
+                            onChange={e => {
+                              const arr = [...(itemArrays[f.key] || [])]; arr[idx] = {...arr[idx], btnText: e.target.value}; setItemArray(f.key, arr)
+                            }}
+                            placeholder="Товчны текст"
+                            className="w-full text-[10px] border border-slate-100 rounded px-1.5 py-1 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          />
+                          <input
+                            value={item.btnUrl || ''}
+                            onChange={e => {
+                              const arr = [...(itemArrays[f.key] || [])]; arr[idx] = {...arr[idx], btnUrl: e.target.value}; setItemArray(f.key, arr)
+                            }}
+                            placeholder="Товчны холбоос"
+                            className="w-full text-[10px] border border-slate-100 rounded px-1.5 py-1 bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          />
+                        </div>
                       </div>
                     ))}
                     <button
