@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../../../.."
+		},
+		{
+			"path": "../../../../../cmsSuperAdmin"
+		},
+		{
+			"path": "../../../../../serverControl"
+		}
+	],
+	"settings": {}
+}

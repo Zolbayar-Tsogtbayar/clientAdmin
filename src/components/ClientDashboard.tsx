@@ -177,7 +177,32 @@ export default function ClientDashboard() {
     setIsLoading(true)
     try {
       const res = await api.listBlocks(accessToken, selectedProject, activePage)
-      const sorted = [...(res.components ?? [])].sort((a, b) => a.order - b.order)
+      const all = res.components ?? []
+      
+      // Reconstruct tree: children with slot='free' go into parent's props._elements
+      const parents = all.filter(c => !c.parentId)
+      const children = all.filter(c => c.parentId && c.slot === 'free')
+      
+      const reconstructed = parents.map(p => {
+        const myChildren = children
+          .filter(c => c.parentId === p.instanceId)
+          .sort((a, b) => a.order - b.order)
+          .map(c => ({
+            id: c.instanceId,
+            type: c.componentType.replace(/^free_/, ''),
+            ...c.props
+          }))
+          
+        return {
+          ...p,
+          props: {
+            ...p.props,
+            _elements: (Array.isArray(p.props?._elements) && p.props._elements.length > 0) ? p.props._elements : myChildren
+          }
+        }
+      })
+
+      const sorted = reconstructed.sort((a, b) => a.order - b.order)
       setBlocks(sorted)
       setSelectedId(null)
     } catch {

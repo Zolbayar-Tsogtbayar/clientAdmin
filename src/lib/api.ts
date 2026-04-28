@@ -67,13 +67,13 @@ export const api = {
   /** List all blocks for a project/page */
   listBlocks: (token: string, project: string, pageRoute?: string) => {
     const q = pageRoute ? `?pageRoute=${encodeURIComponent(pageRoute)}` : ''
-    return req<{ success: boolean; components: ComponentRecord[] }>(`/content-admin/blocks${q}`, { token, project })
+    return req<{ success: boolean; components: ComponentRecord[] }>(`/core/components${q}`, { token, project })
   },
 
   /** Nested tree for a specific page (pageRoute required) */
   getBlocksTree: (token: string, project: string, pageRoute: string) =>
     req<{ success: boolean; components: ComponentRecord[] }>(
-      `/content-admin/blocks/tree?pageRoute=${encodeURIComponent(pageRoute)}`,
+      `/core/components/tree?pageRoute=${encodeURIComponent(pageRoute)}`,
       { token, project },
     ),
 
@@ -96,6 +96,13 @@ export const api = {
     req<{ success: boolean; component: ComponentRecord }>(
       `/content-admin/blocks/${encodeURIComponent(instanceId)}/media`,
       { method: 'POST', token, project, body: JSON.stringify({ items, mode }) },
+    ),
+
+  /** Update freeform elements for a block */
+  saveBlockElements: (token: string, project: string, instanceId: string, elements: any[]) =>
+    req<{ success: boolean; component: ComponentRecord }>(
+      `/content-admin/blocks/${encodeURIComponent(instanceId)}/elements`,
+      { method: 'POST', token, project, body: JSON.stringify({ elements }) },
     ),
 
   /** Upload file to backend and get public URL */
