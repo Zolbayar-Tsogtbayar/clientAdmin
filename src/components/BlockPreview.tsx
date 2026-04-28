@@ -577,7 +577,7 @@ function BlockPreviewContent({ block, isSelected, onPatchProps }: { block: any; 
     const zoneParts: Record<string, ReactNode> = {
       title: <div style={{ fontSize: p.titleSize || 34, fontWeight: '700', color: text, marginBottom: 32 }}>{p.title || (type === 'services' ? 'Үйлчилгээ' : type === 'features' ? 'Онцлог' : type === 'products' ? 'Бүтээгдэхүүн' : type === 'pricing' ? 'Үнийн санал' : 'Харилцагчид')}</div>,
       grid: (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 20, width: '100%' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(' + cols + ', 1fr)', gap: 20, width: '100%' }}>
           {items.length > 0 ? items.map((item: any, i: number) => (
              <div key={i} style={{ background: cardBg, borderRadius: p.cardRadius ?? 16, padding: 24, boxShadow: p.cardShadow === 'none' ? 'none' : '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {item.imageUrl && <img src={item.imageUrl} style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover' }} />}
@@ -668,7 +668,7 @@ function BlockPreviewContent({ block, isSelected, onPatchProps }: { block: any; 
 
   if (type === 'footer') {
     return (
-      <div style={{ ...wrapStyle, borderTop: `1px solid ${text}15`, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16 }}>
+      <div style={{ ...wrapStyle, borderTop: '1px solid ' + text + '15', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16 }}>
         <div style={{ fontWeight: '800', fontSize: 20, color: text }}>{p.title || p.brandName || 'Брэнд нэр'}</div>
         <div style={{ display: 'flex', gap: 20 }}>
           <SkeletonLine w={60} color={text} />
